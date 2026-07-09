@@ -866,10 +866,71 @@ function openInstance(id){
   if(t.gen==='namecard') h+='<div class="sec"><button class="btn ghost sm" onclick="copyText(genNamecard(\''+i.id+'\'),\'발주 정보를 복사했습니다\')">명함 발주 정보 복사</button></div>';
   if(t.gen==='signature') h+='<div class="sec"><button class="btn ghost sm" onclick="copyText(genSignature(\''+i.id+'\'),\'서명 HTML을 복사했습니다\')">이메일 서명 HTML 복사</button> <span class="muted">회사 표준 로고·링크는 붙여넣은 뒤 확인하세요.</span></div>';
   if(t.flexType||/지결|지출/.test((t.checklist||[]).join())) h+='<div class="sec"><button class="btn ghost sm" onclick="closeModal();gotoFlex(\''+(t.flexType||'etc')+'\')">→ flex 지결 초안 만들기</button></div>';
+  h+='<div class="sec" style="display:flex;gap:8px;flex-wrap:wrap">'
+    +'<button class="btn ghost sm" onclick="openInstanceEditor(&quot;'+i.id+'&quot;)">접수 내용 수정</button>'
+    +'<button class="btn ghost sm" onclick="openChecklistEditor(&quot;'+i.id+'&quot;)">체크리스트 수정</button></div>';
   h+='<div class="sec" style="display:flex;gap:8px">'
     +(i.status==='open'?'<button class="btn" onclick="finishInstance(\''+i.id+'\')">업무 완료 처리</button>':'<button class="btn gray" onclick="reopenInstance(\''+i.id+'\')">다시 열기</button>')
     +'<button class="btn gray" onclick="deleteInstance(\''+i.id+'\')">삭제</button></div>';
   openModal(h);
+}
+/* 접수된 수시 업무 수정: 접수 내용(답변)·제목·체크리스트 */
+function openInstanceEditor(id){
+  const i=state.instances.find(x=>x.id===id); if(!i) return;
+  const t=tplById(i.tplId)||{intake:[]};
+  let h='<h3>접수 내용 수정 — '+esc(i.title)+'</h3><div class="form" id="inst-edit-form">'
+   +'<label>업무 제목</label><input type="text" id="ie-title" value="'+esc(i.title)+'"/>';
+  for(const f of (t.intake||[])){
+    const val=i.answers[f.k]||'';
+    h+='<label>'+esc(f.label)+(f.req?'':' <span class="opt">(선택)</span>')+'</label>';
+    if(f.type==='select')
+      h+='<select data-k="'+f.k+'">'+f.options.map(o=>'<option'+(o===val?' selected':'')+'>'+esc(o)+'</option>').join('')+'</select>';
+    else
+      h+='<input type="'+(f.type||'text')+'" data-k="'+f.k+'" value="'+esc(val)+'"/>';
+  }
+  h+='<div style="margin-top:14px"><button class="btn" id="ie-save">저장</button></div></div>';
+  openModal(h);
+  document.getElementById('ie-save').onclick=function(){ saveInstanceEdit(id); };
+}
+function saveInstanceEdit(id){
+  const i=state.instances.find(x=>x.id===id); if(!i) return;
+  const t=tplById(i.tplId)||{};
+  const answers={};
+  let missing=null;
+  document.querySelectorAll('#inst-edit-form [data-k]').forEach(el=>{
+    answers[el.dataset.k]=el.value.trim();
+    const f=(t.intake||[]).find(x=>x.k===el.dataset.k);
+    if(f&&f.req&&!el.value.trim()&&!missing) missing=f.label;
+  });
+  if(missing){ toast('"'+missing+'" 입력이 필요합니다'); return; }
+  i.answers=answers;
+  const title=document.getElementById('ie-title').value.trim();
+  if(title) i.title=title;
+  i.due=answers.due||null;
+  if(i.tplId==='condolence' && answers.days!==undefined){
+    const days=Number(answers.days||0);
+    i.verdict = days>=3 ? '발송 대상(휴가일수 '+days+'일 \u2265 3일)' : '조화 발송 기준 미달(휴가일수 '+days+'일 < 3일) \u2014 담당자 최종 판단 필요';
+  }
+  save(); openInstance(id); renderBackground(); toast('접수 내용을 수정했습니다');
+}
+function openChecklistEditor(id){
+  const i=state.instances.find(x=>x.id===id); if(!i) return;
+  let h='<h3>체크리스트 수정 — '+esc(i.title)+'</h3><p class="muted">한 줄에 하나. 문구가 같은 단계는 진행 상태와 메모가 유지됩니다.</p><div class="form">'
+   +'<textarea id="ce-steps" style="min-height:160px">'+esc(i.checklist.map(s=>s.text).join('\n'))+'</textarea>'
+   +'<div style="margin-top:14px"><button class="btn" id="ce-save">저장</button></div></div>';
+  openModal(h);
+  document.getElementById('ce-save').onclick=function(){ saveChecklistEdit(id); };
+}
+function saveChecklistEdit(id){
+  const i=state.instances.find(x=>x.id===id); if(!i) return;
+  const lines=document.getElementById('ce-steps').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  if(!lines.length){ toast('체크리스트를 한 줄 이상 입력하세요'); return; }
+  const old=i.checklist;
+  i.checklist=lines.map(txt=>{
+    const prev=old.find(s=>s.text===txt);
+    return prev?{text:txt, status:prev.status, memo:prev.memo}:{text:txt, status:'todo', memo:''};
+  });
+  save(); openInstance(id); renderBackground(); toast('체크리스트를 수정했습니다');
 }
 function finishInstance(id){ const i=state.instances.find(x=>x.id===id); if(!i)return;
   const undone=i.checklist.filter(s=>s.status==='todo').length;

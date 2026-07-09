@@ -476,13 +476,16 @@ let state = load();
 function load(){
   try{
     const raw = localStorage.getItem(LS_KEY) || localStorage.getItem(LS_KEY_OLD);
-    if(raw){ const s = JSON.parse(raw); return Object.assign({done:{}, steps:{}, instances:[], customTpls:[], routine:{}}, s); }
+    if(raw){ const s = JSON.parse(raw); return Object.assign({done:{}, steps:{}, instances:[], customTpls:[], routine:{}, recurOv:{}}, s); }
   }catch(e){ console.warn('상태 로드 실패', e); }
-  return {done:{}, steps:{}, instances:[], customTpls:[], routine:{}};
+  return {done:{}, steps:{}, instances:[], customTpls:[], routine:{}, recurOv:{}};
 }
 function save(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){ toast('저장 실패: 브라우저 저장 공간을 확인하세요'); } }
 function allTpls(){ return TPL.concat(state.customTpls||[]); }
 function tplById(id){ return allTpls().find(t=>t.id===id); }
+/* 주기 수정 오버라이드: state.recurOv[tplId]가 있으면 내장 규칙 대신 사용 */
+function effRecur(t){ const ov=(state.recurOv||{})[t.id]; return ov&&ov.recur?ov.recur:t.recur; }
+function effCycle(t){ const ov=(state.recurOv||{})[t.id]; return ov&&ov.cycle?ov.cycle:(t.cycle||''); }
 
 /* ============================================================ 날짜 유틸 */
 function fmt(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
@@ -508,11 +511,11 @@ function ruleDates(rule,y,m){
 function eventsForMonth(y,m,withDday){
   const evs=[];
   for(const t of allTpls()){
-    if(t.kind!=='정기' || !t.recur) continue;
+    if(t.kind!=='정기' || !effRecur(t)) continue;
     // 본 일정: 이번 달 + 앞뒤 달(디데이 단계가 월 경계를 넘는 경우 대비)
     for(const mm of [-1,0,1]){
       const yy=new Date(y,m+mm,1);
-      for(const rule of t.recur){
+      for(const rule of effRecur(t)){
         for(const d of ruleDates(rule,yy.getFullYear(),yy.getMonth())){
           if(mm===0) evs.push({date:fmt(d), tplId:t.id, label:t.name, color:t.color, dd:false});
           if(withDday && t.dday){
@@ -701,7 +704,7 @@ function openEvent(date,tplId,dd,label,snap){
   const ev={date, tplId, dd, label};
   const key=evKey(ev);
   const done=state.done[key];
-  let h='<h3>'+esc(dd?label:t.name)+'</h3><p class="muted">'+kdate(date)+' · '+esc(t.cycle||'')+' · '+esc(t.cat)+'</p>';
+  let h='<h3>'+esc(dd?label:t.name)+'</h3><p class="muted">'+kdate(date)+' · '+esc(effCycle(t))+' · '+esc(t.cat)+'</p>';
   if(dd){
     h+='<div class="info">본 일정의 사전/사후 단계입니다. 완료 처리만 지원합니다.</div>';
   }else{
@@ -968,7 +971,7 @@ function renderTpls(){
     h+='<div class="cat-h">'+c+' ('+list.length+')</div>';
     for(const t of list){
       h+='<details class="tpl"><summary><span class="dot '+t.color+'"></span><span class="t">'+esc(t.name)+'</span>'
-        +'<span class="chip '+(t.kind==='정기'?'blue':'yellow')+'">'+t.kind+'</span><span class="muted">'+esc(t.cycle||'')+'</span>'
+        +'<span class="chip '+(t.kind==='정기'?'blue':'yellow')+'">'+t.kind+'</span><span class="muted">'+esc(effCycle(t))+'</span>'+((state.recurOv||{})[t.id]?'<span class="chip yellow">주기 수정됨</span>':'')
         +(t.custom?'<button class="btn sm gray" onclick="event.preventDefault();delCustomTpl(\''+t.id+'\')">삭제</button>':'')
         +'</summary><div class="body">';
       if(t.overview) h+='<h4>개요</h4><p style="font-size:12.5px">'+esc(t.overview)+'</p>';
@@ -976,6 +979,7 @@ function renderTpls(){
       if(t.checklist&&t.checklist.length) h+='<h4>체크리스트</h4><ul>'+t.checklist.map(k=>'<li>'+esc(k)+'</li>').join('')+'</ul>';
       if(t.contacts) h+='<h4>관련 담당자</h4><p style="font-size:12.5px">'+esc(t.contacts)+'</p>';
       if(t.refs&&t.refs.length) h+='<h4>참조 문서·시트</h4><ul>'+t.refs.map(k=>'<li>'+esc(k)+'</li>').join('')+'</ul>';
+      if(t.kind==='정기') h+='<div style="margin-top:10px"><button class="btn ghost sm" onclick="openRecurEditor(\''+t.id+'\')">주기 수정</button>'+((state.recurOv||{})[t.id]?' <button class="btn sm gray" onclick="resetRecur(\''+t.id+'\')">기본 주기로 복원</button>':'')+'</div>';
       h+='</div></details>';
     }
   }
@@ -1008,6 +1012,72 @@ function addCustomTpl(){
     dday:[], overview:'', knowhow:[], refs:[], checklist:steps.length?steps:['처리'], intake:[{k:'detail',label:'요청 내용',type:'text',req:true}], intakeDesc:'사용자 정의 업무'};
   state.customTpls.push(t); save(); render(); toast('템플릿을 추가했습니다');
 }
+/* 정기 업무 주기(반복 규칙) 수정 */
+const WD_NAMES=['일','월','화','수','목','금','토'];
+function openRecurEditor(tplId){
+  const t=tplById(tplId); if(!t) return;
+  const cur=effRecur(t)||[];
+  const first=cur[0]||{};
+  const type=first.type||'monthlyDay';
+  let h='<h3>주기 수정 — '+esc(t.name)+'</h3><p class="muted">현재: '+esc(effCycle(t))+'</p><div class="form">'
+   +'<label>반복 유형</label><select id="re-type" onchange="recurEditorFields()">'
+   +[['monthlyDay','매월 특정일(쉼표로 복수 지정)'],['monthlyNthWeekday','매월 N번째 요일'],['monthlyLastWeekday','매월 마지막 요일'],['weekly','매주 요일'],['biweekly','격주 요일'],['yearly','연 1회(월/일)']]
+     .map(o=>'<option value="'+o[0]+'"'+(o[0]===type?' selected':'')+'>'+o[1]+'</option>').join('')+'</select>'
+   +'<div id="re-fields"></div>'
+   +'<div style="margin-top:14px"><button class="btn" onclick="saveRecur(\''+tplId+'\')">저장</button></div></div>';
+  openModal(h);
+  recurEditorFields(cur);
+}
+function recurEditorFields(cur){
+  const type=document.getElementById('re-type').value;
+  const first=(cur&&cur[0])||{};
+  const wdSel=(id,sel)=>'<select id="'+id+'">'+WD_NAMES.map((n,i)=>'<option value="'+i+'"'+(i===sel?' selected':'')+'>'+n+'요일</option>').join('')+'</select>';
+  let h='';
+  if(type==='monthlyDay'){
+    const days=(cur||[]).filter(r=>r.type==='monthlyDay').map(r=>r.day).join(',')||'1';
+    h='<label>일자 (예: 1 또는 10,25)</label><input type="text" id="re-days" value="'+days+'"/>';
+  }else if(type==='monthlyNthWeekday'){
+    h='<label>몇 번째 주</label><select id="re-nth">'+[1,2,3,4].map(n=>'<option value="'+n+'"'+(n===(first.nth||1)?' selected':'')+'>'+n+'번째</option>').join('')+'</select>'
+     +'<label>요일</label>'+wdSel('re-wd', first.weekday!=null?first.weekday:1);
+  }else if(type==='monthlyLastWeekday'||type==='weekly'){
+    h='<label>요일</label>'+wdSel('re-wd', first.weekday!=null?first.weekday:1);
+  }else if(type==='biweekly'){
+    h='<label>기준일 (이 날짜와 같은 요일로 2주마다 반복)</label><input type="date" id="re-anchor" value="'+(first.anchor||'2026-01-05')+'"/>';
+  }else if(type==='yearly'){
+    h='<label>월</label><select id="re-month">'+Array.from({length:12},(_,i)=>'<option value="'+(i+1)+'"'+((i+1)===(first.month||1)?' selected':'')+'>'+(i+1)+'월</option>').join('')+'</select>'
+     +'<label>일</label><input type="number" id="re-day" min="1" max="31" value="'+(first.day||1)+'"/>';
+  }
+  document.getElementById('re-fields').innerHTML=h;
+}
+function saveRecur(tplId){
+  const type=document.getElementById('re-type').value;
+  const g=id=>document.getElementById(id);
+  let recur=[], cycle='';
+  if(type==='monthlyDay'){
+    const days=g('re-days').value.split(',').map(s=>parseInt(s.trim(),10)).filter(n=>n>=1&&n<=31);
+    if(!days.length){ toast('일자를 확인하세요'); return; }
+    recur=days.map(d=>({type:'monthlyDay',day:d})); cycle='매월 '+days.join('·')+'일';
+  }else if(type==='monthlyNthWeekday'){
+    const nth=+g('re-nth').value, wd=+g('re-wd').value;
+    recur=[{type:'monthlyNthWeekday',nth:nth,weekday:wd}]; cycle='매월 '+nth+'번째 '+WD_NAMES[wd]+'요일';
+  }else if(type==='monthlyLastWeekday'){
+    const wd=+g('re-wd').value; recur=[{type:'monthlyLastWeekday',weekday:wd}]; cycle='매월 마지막주 '+WD_NAMES[wd]+'요일';
+  }else if(type==='weekly'){
+    const wd=+g('re-wd').value; recur=[{type:'weekly',weekday:wd}]; cycle='매주 '+WD_NAMES[wd]+'요일';
+  }else if(type==='biweekly'){
+    const a=g('re-anchor').value; if(!a){ toast('기준일을 선택하세요'); return; }
+    recur=[{type:'biweekly',anchor:a}]; cycle='격주 '+WD_NAMES[parseD(a).getDay()]+'요일';
+  }else if(type==='yearly'){
+    const m=+g('re-month').value, d=+g('re-day').value||1;
+    recur=[{type:'yearly',month:m,day:d}]; cycle='매년 '+m+'월 '+d+'일';
+  }
+  state.recurOv=state.recurOv||{};
+  state.recurOv[tplId]={recur:recur, cycle:cycle};
+  save(); closeModal(); render(); toast('주기를 수정했습니다');
+}
+function resetRecur(tplId){
+  if(state.recurOv){ delete state.recurOv[tplId]; save(); render(); toast('기본 주기로 복원했습니다'); }
+}
 function delCustomTpl(id){ if(!confirm('이 사용자 템플릿을 삭제할까요?')) return; state.customTpls=state.customTpls.filter(t=>t.id!==id); save(); render(); }
 
 /* ============================================================ 데이터 입출력 */
@@ -1024,12 +1094,12 @@ function importData(input){
       const s=JSON.parse(r.result);
       if(!s||typeof s!=='object'||!('instances' in s)) throw new Error('형식 불일치');
       if(!confirm('현재 데이터를 가져온 파일로 교체할까요?')) return;
-      state=Object.assign({done:{},steps:{},instances:[],customTpls:[],routine:{}}, s); save(); render(); toast('가져오기 완료');
+      state=Object.assign({done:{},steps:{},instances:[],customTpls:[],routine:{},recurOv:{}}, s); save(); render(); toast('가져오기 완료');
     }catch(e){ toast('가져오기 실패: 올바른 백업 파일이 아닙니다'); } finally{ input.value=''; } };
   r.readAsText(f);
 }
 function resetData(){ if(!confirm('모든 기록(완료·수시 업무·템플릿)을 초기화할까요? 되돌릴 수 없습니다.')) return;
-  state={done:{},steps:{},instances:[],customTpls:[],routine:{}}; save(); render(); toast('초기화했습니다'); }
+  state={done:{},steps:{},instances:[],customTpls:[],routine:{},recurOv:{}}; save(); render(); toast('초기화했습니다'); }
 
 render();
 </script>

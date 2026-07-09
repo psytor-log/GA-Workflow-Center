@@ -476,12 +476,15 @@ let state = load();
 function load(){
   try{
     const raw = localStorage.getItem(LS_KEY) || localStorage.getItem(LS_KEY_OLD);
-    if(raw){ const s = JSON.parse(raw); return Object.assign({done:{}, steps:{}, instances:[], customTpls:[], routine:{}, recurOv:{}}, s); }
+    if(raw){ const s = JSON.parse(raw); return Object.assign({done:{}, steps:{}, instances:[], customTpls:[], routine:{}, recurOv:{}, tplOv:{}}, s); }
   }catch(e){ console.warn('상태 로드 실패', e); }
-  return {done:{}, steps:{}, instances:[], customTpls:[], routine:{}, recurOv:{}};
+  return {done:{}, steps:{}, instances:[], customTpls:[], routine:{}, recurOv:{}, tplOv:{}};
 }
 function save(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){ toast('저장 실패: 브라우저 저장 공간을 확인하세요'); } }
-function allTpls(){ return TPL.concat(state.customTpls||[]); }
+function allTpls(){
+  // 사용자 수정(tplOv)이 있으면 원본 위에 덮어써서 반환. 원본 배열은 불변.
+  return TPL.concat(state.customTpls||[]).map(t=>{ const ov=(state.tplOv||{})[t.id]; return ov?Object.assign({},t,ov):t; });
+}
 function tplById(id){ return allTpls().find(t=>t.id===id); }
 /* 주기 수정 오버라이드: state.recurOv[tplId]가 있으면 내장 규칙 대신 사용 */
 function effRecur(t){ const ov=(state.recurOv||{})[t.id]; return ov&&ov.recur?ov.recur:t.recur; }
@@ -971,7 +974,7 @@ function renderTpls(){
     h+='<div class="cat-h">'+c+' ('+list.length+')</div>';
     for(const t of list){
       h+='<details class="tpl"><summary><span class="dot '+t.color+'"></span><span class="t">'+esc(t.name)+'</span>'
-        +'<span class="chip '+(t.kind==='정기'?'blue':'yellow')+'">'+t.kind+'</span><span class="muted">'+esc(effCycle(t))+'</span>'+((state.recurOv||{})[t.id]?'<span class="chip yellow">주기 수정됨</span>':'')
+        +'<span class="chip '+(t.kind==='정기'?'blue':'yellow')+'">'+t.kind+'</span><span class="muted">'+esc(effCycle(t))+'</span>'+((state.tplOv||{})[t.id]?'<span class="chip green">수정됨</span>':'')+((state.recurOv||{})[t.id]?'<span class="chip yellow">주기 수정됨</span>':'')
         +(t.custom?'<button class="btn sm gray" onclick="event.preventDefault();delCustomTpl(\''+t.id+'\')">삭제</button>':'')
         +'</summary><div class="body">';
       if(t.overview) h+='<h4>개요</h4><p style="font-size:12.5px">'+esc(t.overview)+'</p>';
@@ -979,7 +982,7 @@ function renderTpls(){
       if(t.checklist&&t.checklist.length) h+='<h4>체크리스트</h4><ul>'+t.checklist.map(k=>'<li>'+esc(k)+'</li>').join('')+'</ul>';
       if(t.contacts) h+='<h4>관련 담당자</h4><p style="font-size:12.5px">'+esc(t.contacts)+'</p>';
       if(t.refs&&t.refs.length) h+='<h4>참조 문서·시트</h4><ul>'+t.refs.map(k=>'<li>'+esc(k)+'</li>').join('')+'</ul>';
-      if(t.kind==='정기') h+='<div style="margin-top:10px"><button class="btn ghost sm" onclick="openRecurEditor(\''+t.id+'\')">주기 수정</button>'+((state.recurOv||{})[t.id]?' <button class="btn sm gray" onclick="resetRecur(\''+t.id+'\')">기본 주기로 복원</button>':'')+'</div>';
+      h+='<div style="margin-top:10px"><button class="btn ghost sm" onclick="openTplEditor(&quot;'+t.id+'&quot;)">내용 수정</button>'+(t.kind==='정기'?' <button class="btn ghost sm" onclick="openRecurEditor(&quot;'+t.id+'&quot;)">주기 수정</button>':'')+((state.tplOv||{})[t.id]?' <button class="btn sm gray" onclick="resetTplEdit(&quot;'+t.id+'&quot;)">내용 복원</button>':'')+((state.recurOv||{})[t.id]?' <button class="btn sm gray" onclick="resetRecur(&quot;'+t.id+'&quot;)">주기 복원</button>':'')+'</div>';
       h+='</div></details>';
     }
   }
@@ -1078,6 +1081,61 @@ function saveRecur(tplId){
 function resetRecur(tplId){
   if(state.recurOv){ delete state.recurOv[tplId]; save(); render(); toast('기본 주기로 복원했습니다'); }
 }
+/* 업무 템플릿 내용 수정 — 모든 항목 편집 가능, 원본은 tplOv 오버라이드로 보존 */
+function openTplEditor(tplId){
+  const t=tplById(tplId); if(!t) return;
+  const CATS=['복리후생','구매','시설관리','비품','안전','전산','공통'];
+  const lines=a=>(a||[]).join('\n');
+  let h='<h3>업무 수정 — '+esc(t.name)+'</h3><p class="muted">모든 항목을 수정할 수 있습니다. [내용 복원]으로 언제든 원본으로 되돌릴 수 있어요.</p><div class="form">'
+   +'<label>업무명</label><input type="text" id="te-name" value="'+esc(t.name)+'"/>'
+   +'<label>분류</label><select id="te-cat">'+CATS.map(c=>'<option'+(c===t.cat?' selected':'')+'>'+c+'</option>').join('')+'</select>'
+   +'<label>색상(캘린더 표시)</label><select id="te-color">'+[['blue','파랑 — 결제·지출결의'],['green','초록 — 점검·확인'],['yellow','노랑 — 업체 연락·예약']].map(o=>'<option value="'+o[0]+'"'+(o[0]===t.color?' selected':'')+'>'+o[1]+'</option>').join('')+'</select>'
+   +'<label>개요</label><input type="text" id="te-overview" value="'+esc(t.overview||'')+'"/>'
+   +'<label>관련 담당자</label><input type="text" id="te-contacts" value="'+esc(t.contacts||'')+'"/>'
+   +'<label>체크리스트 (한 줄에 하나)</label><textarea id="te-checklist" style="min-height:110px">'+esc(lines(t.checklist))+'</textarea>'
+   +'<label>노하우·주의 (한 줄에 하나)</label><textarea id="te-knowhow">'+esc(lines(t.knowhow))+'</textarea>'
+   +'<label>참조 문서·시트 (한 줄에 하나)</label><textarea id="te-refs">'+esc(lines(t.refs))+'</textarea>';
+  if(t.kind==='수시'){
+    h+='<label>접수 카드 설명</label><input type="text" id="te-desc" value="'+esc(t.intakeDesc||'')+'"/>'
+     +'<label>접수 질문 (한 줄에 하나, 첫 질문은 필수 입력)</label><textarea id="te-intake">'+esc((t.intake||[]).map(f=>f.label).join('\n'))+'</textarea>';
+  }else{
+    h+='<label>D-day 단계 (한 줄에 하나, 형식: 오프셋|라벨, 예: -5|D-5 청구서 확인)</label><textarea id="te-dday">'+esc((t.dday||[]).map(s=>s.off+'|'+s.label).join('\n'))+'</textarea>'
+     +'<div class="info">반복 주기는 이 창을 저장한 뒤 [주기 수정] 버튼에서 바꿉니다.</div>';
+  }
+  h+='<div style="margin-top:14px"><button class="btn" id="te-save">저장</button></div></div>';
+  openModal(h);
+  document.getElementById('te-save').onclick=function(){ saveTplEdit(tplId); };
+}
+function saveTplEdit(tplId){
+  const t=tplById(tplId); if(!t) return;
+  const g=id=>document.getElementById(id);
+  const linesOf=id=>g(id).value.split('\n').map(s=>s.trim()).filter(Boolean);
+  const name=g('te-name').value.trim();
+  if(!name){ toast('업무명을 입력하세요'); return; }
+  const ov={name:name, cat:g('te-cat').value, color:g('te-color').value,
+    overview:g('te-overview').value.trim(), contacts:g('te-contacts').value.trim(),
+    checklist:linesOf('te-checklist'), knowhow:linesOf('te-knowhow'), refs:linesOf('te-refs')};
+  if(!ov.checklist.length){ toast('체크리스트를 한 줄 이상 입력하세요'); return; }
+  if(t.kind==='수시'){
+    ov.intakeDesc=g('te-desc').value.trim();
+    const qs=linesOf('te-intake');
+    if(qs.length) ov.intake=qs.map((q,i)=>({k:'q'+i, label:q, type:'text', req:i===0}));
+  }else{
+    const dd=[];
+    for(const ln of linesOf('te-dday')){
+      const m=ln.match(/^([+-]?\d+)\s*\|\s*(.+)$/);
+      if(!m){ toast('D-day 형식 오류: "'+ln+'" — 예: -5|D-5 청구서 확인'); return; }
+      dd.push({off:parseInt(m[1],10), label:m[2]});
+    }
+    ov.dday=dd;
+  }
+  state.tplOv=state.tplOv||{};
+  state.tplOv[tplId]=ov;
+  save(); closeModal(); render(); toast('업무를 수정했습니다');
+}
+function resetTplEdit(tplId){
+  if(state.tplOv){ delete state.tplOv[tplId]; save(); render(); toast('원본 내용으로 복원했습니다'); }
+}
 function delCustomTpl(id){ if(!confirm('이 사용자 템플릿을 삭제할까요?')) return; state.customTpls=state.customTpls.filter(t=>t.id!==id); save(); render(); }
 
 /* ============================================================ 데이터 입출력 */
@@ -1094,12 +1152,12 @@ function importData(input){
       const s=JSON.parse(r.result);
       if(!s||typeof s!=='object'||!('instances' in s)) throw new Error('형식 불일치');
       if(!confirm('현재 데이터를 가져온 파일로 교체할까요?')) return;
-      state=Object.assign({done:{},steps:{},instances:[],customTpls:[],routine:{},recurOv:{}}, s); save(); render(); toast('가져오기 완료');
+      state=Object.assign({done:{},steps:{},instances:[],customTpls:[],routine:{},recurOv:{},tplOv:{}}, s); save(); render(); toast('가져오기 완료');
     }catch(e){ toast('가져오기 실패: 올바른 백업 파일이 아닙니다'); } finally{ input.value=''; } };
   r.readAsText(f);
 }
 function resetData(){ if(!confirm('모든 기록(완료·수시 업무·템플릿)을 초기화할까요? 되돌릴 수 없습니다.')) return;
-  state={done:{},steps:{},instances:[],customTpls:[],routine:{},recurOv:{}}; save(); render(); toast('초기화했습니다'); }
+  state={done:{},steps:{},instances:[],customTpls:[],routine:{},recurOv:{},tplOv:{}}; save(); render(); toast('초기화했습니다'); }
 
 render();
 </script>

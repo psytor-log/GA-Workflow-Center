@@ -1,3 +1,9 @@
 internal-web/
 *.internal.html
 start-internal-server*
+server.py
+login.html
+auth-ui.js
+users.json
+sessions.json
+*.tmp

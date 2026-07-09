@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<!-- GA Workflow Center: 총무 정기/수시 업무 캘린더, 체크리스트, flex 지출결의 초안 생성기를 담은 단일 파일 웹앱 (GA_업무자동화툴_기획서.md 기반) -->
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GA Workflow Center</title>
+<style>
+  :root{
+    --bg:#f4f6fa; --card:#ffffff; --line:#e3e8f0; --text:#1f2937; --sub:#6b7280;
+    --blue:#2563eb; --blue-bg:#e4edff; --green:#059669; --green-bg:#dcf5ea;
+    --yellow:#b45309; --yellow-bg:#fdf0d2; --red:#dc2626; --red-bg:#fde3e3;
+    --primary:#2f4bd8; --primary-dark:#2338ac;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{font-family:'Segoe UI','Malgun Gothic','Apple SD Gothic Neo',sans-serif; background:var(--bg); color:var(--text); font-size:14px; line-height:1.55;}
+  header{background:#fff; border-bottom:1px solid var(--line); padding:0 20px; position:sticky; top:0; z-index:20;}
+  .head-top{display:flex; align-items:center; gap:12px; padding:12px 0 6px;}
+  .head-top h1{font-size:19px; letter-spacing:-.3px;}
+  .head-top .tag{font-size:11px; background:var(--blue-bg); color:var(--primary); padding:2px 8px; border-radius:10px; font-weight:600;}
+  .head-top .spacer{flex:1;}
+  .head-top button{font-size:12px; padding:5px 10px; border:1px solid var(--line); background:#fff; border-radius:7px; cursor:pointer; color:var(--sub);}
+  .head-top button:hover{border-color:var(--primary); color:var(--primary);}
+  nav{display:flex; gap:2px; overflow-x:auto;}
+  nav button{border:none; background:none; padding:9px 14px; font-size:13.5px; cursor:pointer; color:var(--sub); border-bottom:2.5px solid transparent; white-space:nowrap; font-weight:600;}
+  nav button.on{color:var(--primary); border-bottom-color:var(--primary);}
+  main{max-width:1120px; margin:0 auto; padding:18px 16px 60px;}
+  main.wide{max-width:1800px;}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:14px;}
+  .card h2{font-size:15px; margin-bottom:10px; display:flex; align-items:center; gap:8px;}
+  .card h2 .cnt{font-size:11px; background:var(--bg); color:var(--sub); border-radius:9px; padding:1px 8px;}
+  .muted{color:var(--sub); font-size:12.5px;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  @media(max-width:760px){.grid2{grid-template-columns:1fr;}}
+  /* 색상 칩 */
+  .chip{display:inline-flex; align-items:center; gap:5px; font-size:11.5px; padding:2px 8px; border-radius:9px; font-weight:600;}
+  .chip.blue{background:var(--blue-bg); color:var(--blue);} .chip.green{background:var(--green-bg); color:var(--green);}
+  .chip.yellow{background:var(--yellow-bg); color:var(--yellow);} .chip.red{background:var(--red-bg); color:var(--red);}
+  .chip.gray{background:#eef1f6; color:var(--sub);}
+  /* 리스트 행 */
+  .row{display:flex; align-items:center; gap:10px; padding:9px 6px; border-bottom:1px solid var(--line); cursor:pointer; border-radius:6px;}
+  .row:last-child{border-bottom:none;}
+  .row:hover{background:#f8faff;}
+  .row .grow{flex:1; min-width:0;}
+  .row .t{font-weight:600; font-size:13.5px;}
+  .row .s{font-size:12px; color:var(--sub);}
+  .row.done .t{text-decoration:line-through; color:var(--sub);}
+  .dot{width:9px; height:9px; border-radius:50%; flex:none;}
+  .dot.blue{background:var(--blue);} .dot.green{background:var(--green);} .dot.yellow{background:#eab308;} .dot.red{background:var(--red);} .dot.gray{background:#9ca3af;}
+  /* 대시보드 통계 */
+  .stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:14px;}
+  .stat{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px;}
+  .stat .n{font-size:24px; font-weight:700; letter-spacing:-.5px;}
+  .stat .l{font-size:12px; color:var(--sub); margin-top:2px;}
+  .bar{height:7px; background:#e9edf5; border-radius:4px; overflow:hidden; margin-top:8px;}
+  .bar>div{height:100%; background:var(--primary); border-radius:4px;}
+  /* 캘린더 */
+  .cal-head{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
+  .cal-head h2{font-size:20px;}
+  .cal-head button{border:1px solid var(--line); background:#fff; border-radius:7px; padding:4px 11px; cursor:pointer; font-size:14px;}
+  .cal-head label{font-size:12px; color:var(--sub); margin-left:auto; display:flex; align-items:center; gap:4px; cursor:pointer;}
+  .legend{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; font-size:12px; color:var(--sub);}
+  .legend span{display:inline-flex; align-items:center; gap:5px;}
+  table.cal{width:100%; border-collapse:collapse; table-layout:fixed; background:#fff; border:1px solid var(--line); border-radius:10px; overflow:hidden;}
+  table.cal th{font-size:13.5px; color:var(--sub); padding:10px 0; border-bottom:1px solid var(--line); background:#fafbfe; font-weight:600;}
+  table.cal th.sun{color:var(--red);}
+  table.cal td{vertical-align:top; border:1px solid #eef1f6; height:158px; padding:6px; font-size:12.5px;}
+  table.cal td .dnum{font-size:14px; font-weight:600; color:var(--sub); margin-bottom:5px;}
+  table.cal td.today{background:#f2f6ff;}
+  table.cal td.today .dnum{color:var(--primary);}
+  table.cal td.dim{background:#fafafa;}
+  .ev{display:block; width:100%; text-align:left; border:none; border-radius:6px; padding:3px 8px; margin-bottom:3px; cursor:pointer; font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600;}
+  .ev.blue{background:var(--blue-bg); color:var(--blue);} .ev.green{background:var(--green-bg); color:var(--green);}
+  .ev.yellow{background:var(--yellow-bg); color:var(--yellow);} .ev.red{background:var(--red-bg); color:var(--red);}
+  .ev.done{opacity:.45; text-decoration:line-through;}
+  .ev.dd{font-weight:400; opacity:.85; font-size:11.5px;}
+  /* 접수함 */
+  .intake-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:10px;}
+  .intake-card{border:1px solid var(--line); border-radius:11px; padding:13px 14px; cursor:pointer; background:#fff; text-align:left;}
+  .intake-card:hover{border-color:var(--primary); box-shadow:0 2px 8px rgba(47,75,216,.08);}
+  .intake-card .t{font-weight:700; font-size:14px; margin-bottom:4px;}
+  .intake-card .s{font-size:12px; color:var(--sub);}
+  .intake-card.add{border-style:dashed; border-color:#c7d2e8; background:#fafbfe; display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--primary); min-height:96px;}
+  .intake-card.add:hover{background:#f2f6ff;}
+  .intake-card.add .plus{font-size:26px; line-height:1; margin-bottom:4px; font-weight:300;}
+  /* 폼 */
+  .form label{display:block; font-size:12.5px; font-weight:600; margin:11px 0 4px;}
+  .form label .opt{color:var(--sub); font-weight:400;}
+  .form input[type=text],.form input[type=number],.form input[type=date],.form select,.form textarea{
+    width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-size:13.5px; font-family:inherit; background:#fff;}
+  .form textarea{min-height:70px; resize:vertical;}
+  .btn{display:inline-block; background:var(--primary); color:#fff; border:none; border-radius:8px; padding:9px 18px; font-size:13.5px; font-weight:600; cursor:pointer;}
+  .btn:hover{background:var(--primary-dark);}
+  .btn.ghost{background:#fff; color:var(--primary); border:1px solid var(--primary);}
+  .btn.sm{padding:4px 10px; font-size:12px; border-radius:6px;}
+  .btn.gray{background:#eef1f6; color:var(--sub);}
+  /* flex 출력 */
+  .flex-out{background:#0f172a; color:#e2e8f0; border-radius:10px; padding:14px; font-family:Consolas,'Courier New',monospace; font-size:12.5px; white-space:pre-wrap; word-break:break-all;}
+  .field-line{display:flex; align-items:flex-start; gap:8px; padding:7px 0; border-bottom:1px dashed var(--line);}
+  .field-line:last-child{border-bottom:none;}
+  .field-line .k{width:96px; flex:none; font-size:12px; color:var(--sub); font-weight:600; padding-top:2px;}
+  .field-line .v{flex:1; font-size:13.5px; white-space:pre-wrap; word-break:break-word;}
+  .copy-btn{flex:none; font-size:11px; border:1px solid var(--line); background:#fff; border-radius:6px; padding:2px 8px; cursor:pointer; color:var(--sub);}
+  .copy-btn:hover{color:var(--primary); border-color:var(--primary);}
+  .warn{background:var(--yellow-bg); color:var(--yellow); border-radius:8px; padding:8px 12px; font-size:12.5px; margin-top:8px;}
+  .info{background:var(--blue-bg); color:var(--primary); border-radius:8px; padding:8px 12px; font-size:12.5px; margin-top:8px;}
+  /* 모달 */
+  .overlay{position:fixed; inset:0; background:rgba(15,23,42,.45); display:none; align-items:flex-start; justify-content:center; padding:40px 14px; z-index:50; overflow-y:auto;}
+  .overlay.on{display:flex;}
+  .modal{background:#fff; border-radius:14px; max-width:640px; width:100%; padding:20px; position:relative;}
+  .modal h3{font-size:16px; margin-bottom:4px; padding-right:30px;}
+  .modal .x{position:absolute; top:12px; right:14px; border:none; background:none; font-size:20px; cursor:pointer; color:var(--sub);}
+  .modal .sec{margin-top:13px;}
+  .modal .sec h4{font-size:12.5px; color:var(--sub); margin-bottom:5px;}
+  /* 체크리스트 스텝 */
+  .step{display:flex; align-items:flex-start; gap:8px; padding:7px 0; border-bottom:1px solid #f0f2f7;}
+  .step:last-child{border-bottom:none;}
+  .step .st-btn{flex:none; width:70px; font-size:11px; border-radius:6px; border:1px solid var(--line); background:#fff; cursor:pointer; padding:3px 0; font-weight:600; color:var(--sub);}
+  .step.s-done .st-btn{background:var(--green-bg); color:var(--green); border-color:transparent;}
+  .step.s-hold .st-btn{background:var(--yellow-bg); color:var(--yellow); border-color:transparent;}
+  .step.s-exception .st-btn{background:var(--red-bg); color:var(--red); border-color:transparent;}
+  .step .txt{flex:1; font-size:13px; padding-top:2px;}
+  .step.s-done .txt{color:var(--sub); text-decoration:line-through;}
+  .step input.memo{width:150px; flex:none; font-size:11.5px; border:1px solid transparent; border-radius:6px; padding:3px 6px; background:#f7f8fb;}
+  .step input.memo:focus{border-color:var(--line); outline:none; background:#fff;}
+  /* 템플릿 */
+  details.tpl{border:1px solid var(--line); border-radius:10px; margin-bottom:8px; background:#fff;}
+  details.tpl summary{padding:11px 14px; cursor:pointer; display:flex; align-items:center; gap:9px; list-style:none;}
+  details.tpl summary::-webkit-details-marker{display:none;}
+  details.tpl summary .t{font-weight:600; font-size:13.5px; flex:1;}
+  details.tpl .body{padding:0 14px 13px; border-top:1px solid #f0f2f7;}
+  details.tpl .body h4{font-size:12px; color:var(--sub); margin:11px 0 3px;}
+  details.tpl .body ul{padding-left:18px; font-size:12.5px;}
+  .cat-h{font-size:13px; font-weight:700; color:var(--sub); margin:16px 0 8px;}
+  .empty{color:var(--sub); font-size:13px; padding:14px 4px; text-align:center;}
+  .toast{position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:#111827; color:#fff; font-size:13px; padding:9px 18px; border-radius:9px; opacity:0; transition:opacity .25s; z-index:99; pointer-events:none;}
+  .toast.on{opacity:1;}
+  .filters{display:flex; gap:6px; margin-bottom:10px;}
+  .filters button{font-size:12px; border:1px solid var(--line); background:#fff; border-radius:14px; padding:4px 12px; cursor:pointer; color:var(--sub);}
+  .filters button.on{background:var(--primary); border-color:var(--primary); color:#fff;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="head-top">
+    <h1>GA Workflow Center</h1>
+    <span class="tag">총무 운영 보조</span>
+    <span class="spacer"></span>
+    <button onclick="exportData()">데이터 내보내기</button>
+    <button onclick="document.getElementById('import-file').click()">가져오기</button>
+    <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(this)" />
+  </div>
+  <nav id="nav">
+    <button data-v="dash" class="on">오늘의 GA</button>
+    <button data-v="cal">정기 업무 캘린더</button>
+    <button data-v="intake">수시 업무 접수</button>
+    <button data-v="tasks">진행 중 업무</button>
+    <button data-v="flex">flex 초안 생성기</button>
+    <button data-v="tpl">업무 템플릿</button>
+  </nav>
+</header>
+
+<main>
+  <div id="v-dash"></div>
+  <div id="v-cal" style="display:none"></div>
+  <div id="v-intake" style="display:none"></div>
+  <div id="v-tasks" style="display:none"></div>
+  <div id="v-flex" style="display:none"></div>
+  <div id="v-tpl" style="display:none"></div>
+</main>
+
+<div class="overlay" id="overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modal"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+/* ============================================================
+ * 데이터. 무하유_총무업무_마스터리스트_정리본_2026-06-04.xlsx 26건 기반.
+ * recur 규칙: monthlyDay / monthlyNthWeekday / monthlyLastWeekday / weekly / biweekly / yearly
+ * color: blue=결제·지출결의, green=점검·확인, yellow=업체 연락·예약
+ * ============================================================ */
+const PO_THRESHOLD = 300000; // 품의 없이 법인카드 결제 가능한 상한 (사용자 확정 2026-07-09: 30만원)
+
+const TPL = [
+{id:'parking', no:2, cat:'복리후생', name:'주차권 관리 · 매월 1일 결제', kind:'정기', color:'blue', cycle:'매월 1일',
+ recur:[{type:'monthlyDay', day:1}],
+ dday:[{off:-1, label:'D-1 결제 준비(법인카드·관리사무소 일정 확인)'},{off:1, label:'D+1 지결 상신 확인'}],
+ overview:'사옥 주차권 구매·배정, 사용대장 관리, 매달 1일 주차비 현장 결제와 지출결의.',
+ knowhow:['매달 1일 지하1층 SK 관리사무소에서 법인카드로 직접 결제(현장 방문 필요).','지결 항목은 반드시 지급수수료.','지결 메모 필수: 동·층별 금액을 구분 기재(B동 정기결제 / 19층 / 2층 — 실제 금액은 내부 대장 참고).','B동 임시주차 발생 시 사진 받아 관리자에게 연락.'],
+ contacts:'경영지원 담당, SK V1타워 관리자(연락처·계정은 자격증명 저장소 확인)',
+ refs:['업무매뉴얼: 무하유 성수 사옥 주차권 구매 및 관리 방법(r1)','업무매뉴얼: 무하유 본사 사옥 주차 방법(r6)','Google Sheet: 주차 사용대장'],
+ checklist:['지하1층 SK 관리사무소 방문, 법인카드 결제','결제 영수증 확보(flex 영수증 확인)','지결 상신 — 지급수수료, 동·층별 금액 메모 기재','주차 사용대장 갱신'],
+ flexType:'parking'},
+
+{id:'supplies', no:6, cat:'구매', name:'소모품 구매(격주)', kind:'정기', color:'blue', cycle:'격주 월요일',
+ recur:[{type:'biweekly', anchor:'2026-01-05'}],
+ dday:[],
+ overview:'사무실 소모품(비품)을 격주로 확인·구매한다.',
+ knowhow:['30만원 이내 소액은 품의 없이 총무 법인카드로 결제.','flex 영수증에 카드 영수증이 뜨면 해당 영수증으로 지출결의 상신.','총무 관련 물품은 지결 항목 소모품비.'],
+ contacts:'총무 담당',
+ refs:['업무매뉴얼: 소모품비(품의/지출)(r5)','공용 법인카드 지출결의서 작성 매뉴얼(플렉스)(r14)'],
+ checklist:['소모품 재고 확인·구매 리스트 작성','30만원 이내 여부 확인(초과 시 품의 검토)','법인카드 결제','flex 영수증 확인·사진 첨부','지결 상신 — 소모품비, 구매 내용 메모'],
+ flexType:'supplies'},
+
+{id:'snack-hq', no:7, cat:'구매', name:'간식 구매 · 본사(위펀)', kind:'정기', color:'yellow', cycle:'매주 월요일',
+ recur:[{type:'weekly', weekday:1}],
+ dday:[],
+ overview:'본사 휴게실 간식을 위펀으로 담아 두면 지정일에 자동 마감·구매된다.',
+ knowhow:['위펀에 미리 담아두면 해당 일자에 자동 마감·구매.','월 1회 세금계산서를 GA 메일로 받아 지결.','위펀 고객센터 1644-4624(전화 소통 권장).'],
+ contacts:'위펀 고객센터 1644-4624',
+ refs:['업무매뉴얼: 휴게실 물품(간식) 구매 방법(r39)','플렉스 계약 내용 링크'],
+ checklist:['위펀 장바구니 담기·마감일 확인','재고 부족 품목 보충','월 1회 세금계산서 수취 시 지결(별도)'],
+ flexType:'snack'},
+
+{id:'snack-jj', no:7, cat:'구매', name:'간식 구매 · 전주(쿠팡)', kind:'정기', color:'blue', cycle:'매월 첫째주 월요일',
+ recur:[{type:'monthlyNthWeekday', nth:1, weekday:1}],
+ dday:[],
+ overview:'전주사무실 간식을 월 1회 쿠팡으로 주문한다(월초, 30만원 이내).',
+ knowhow:['배송 주소를 반드시 전주로 확인! (가장 흔한 실수)','법인카드 결제 후 지결. 월초 30만원 이내.','쿠팡 지결: my쿠팡 주문목록>주문상세>카드영수증 → 플렉스 비용처리.'],
+ contacts:'총무 담당',
+ refs:['업무매뉴얼: 휴게실 물품(간식) 구매 방법(r39)'],
+ checklist:['주문 리스트 확정(30만원 이내)','배송 주소가 전주인지 더블체크','법인카드 결제','쿠팡 카드영수증 확보','지결 상신'],
+ flexType:'snack'},
+
+{id:'birthday', no:9, cat:'복리후생', name:'생일 선물 발송(다음 달 대상)', kind:'정기', color:'yellow', cycle:'매월 20일 취합 시작',
+ recur:[{type:'monthlyDay', day:20}],
+ dday:[{off:3, label:'D+3 명단 확정·업체 요청'},{off:6, label:'D+6 발송 확인'}],
+ overview:'매월 20일부터 다음 달 생일자 정보를 취합해 선물·메시지를 발송한다.',
+ knowhow:['압구정공주떡 요청(메일 포워딩).','생일 메시지는 매달 다르게 성의 있게 작성(복붙 티 안 나게).','명단의 생일·부서·재직 여부 최신화 필수.'],
+ contacts:'압구정공주떡(메일)',
+ refs:['업무매뉴얼: 구성원 생일 선물 주문 및 발송 방법(r8)','Google Sheet: 생일 선물 명단'],
+ checklist:['다음 달 생일자 추출(명단 시트)','주소지·받는 사람 확인','압구정공주떡에 메일 요청(포워딩 양식)','생일 메시지 작성(매달 새로)','발송 리스트 확정·발송 확인','비용 지결'],
+ flexType:'etc'},
+
+{id:'cleaning', no:10, cat:'시설관리', name:'사무실 청소비 지결', kind:'정기', color:'blue', cycle:'매월 마지막주 월요일',
+ recur:[{type:'monthlyLastWeekday', weekday:1}],
+ dday:[{off:-5, label:'D-5 세금계산서 수취 확인'},{off:-3, label:'D-3 지결 초안 생성'},{off:-1, label:'D-1 미상신 확인'}],
+ overview:'청소 업체(슈퍼맨크린) 월 청소비 지결과 청소 소모품 구매.',
+ knowhow:['세금계산서 PDF 다운 → flex 캡처 이미지 확인 → 지결 작성(타이틀 양식 링크 참고).','종량제 봉투(1층 세븐일레븐, 50리터)·분리수거 봉투(쿠팡, 법카) 주기적 구매.','청소 업체 변경 검토 중(지니크린→청소24, 검토·개선 시트 참고).'],
+ contacts:'슈퍼맨크린(청소 업체)',
+ refs:['지결 타이틀 양식 링크'],
+ checklist:['세금계산서 PDF 다운로드','flex 캡처 이미지 확인','지결 상신(타이틀 양식 준수)','청소 소모품(봉투류) 재고 확인'],
+ flexType:'tax'},
+
+{id:'kakaot', no:16, cat:'복리후생', name:'카카오 T 라이선스·지결', kind:'정기', color:'blue', cycle:'매월 마지막주 월요일',
+ recur:[{type:'monthlyLastWeekday', weekday:1}],
+ dday:[{off:-3, label:'D-3 청구 내역 확인'},{off:-1, label:'D-1 미상신 확인'}],
+ overview:'카카오 T 비즈니스 구성원 관리와 월 청구 지결.',
+ knowhow:['퇴사자 라이선스 즉시 삭제(비용·보안).','청구 결제내역서에서 PDF 다운로드 후 영수증 첨부해 지결.','biz.kakaomobility.com/tbiz'],
+ contacts:'카카오모빌리티 비즈',
+ refs:['업무매뉴얼: 카카오 T 비즈니스 이용 및 지출결의 방법(r14)','업무매뉴얼: 구성원 관리(r1)'],
+ checklist:['구성원 등록/삭제 확인(퇴사자 삭제)','청구 결제내역서 PDF 다운로드','영수증 첨부해 지결 상신'],
+ flexType:'etc'},
+
+{id:'sikdae', no:17, cat:'복리후생', name:'식권대장 정산·지결', kind:'정기', color:'blue', cycle:'매월 첫째주 수요일',
+ recur:[{type:'monthlyNthWeekday', nth:1, weekday:3}],
+ dday:[{off:-2, label:'D-2 식대내역 다운로드'},{off:-1, label:'D-1 통계 일치 확인'}],
+ overview:'식권대장 사용자 관리와 월 식대 정산·지결.',
+ knowhow:['식권대장 로그인 → 식대내역 엑셀 다운로드 → 스프레드시트 기록 탭에 로우데이터 붙여넣기.','각 탭 통계 금액 일치 확인. 불일치 시 신규 추가 식당 이력 확인.','퇴사자 사용자 삭제 누락 주의.'],
+ contacts:'식권대장 / 정산 담당',
+ refs:['업무매뉴얼: 식권대장 사용자 등록 및 삭제(r2)','업무매뉴얼: 식권대장 정산 방법(r6)','Google Sheet: 식권대장 정산'],
+ checklist:['사용자 등록/삭제 확인(퇴사자)','식대내역 엑셀 다운로드','기록 탭에 로우데이터 붙여넣기','탭 통계 금액 일치 확인(불일치 시 신규 식당 확인)','지결 상신'],
+ flexType:'etc'},
+
+{id:'newspaper', no:18, cat:'비품', name:'신문 구독료 지결(전자신문·매경)', kind:'정기', color:'blue', cycle:'매월 마지막주 화요일',
+ recur:[{type:'monthlyLastWeekday', weekday:2}],
+ dday:[{off:-5, label:'D-5 영수증 수취 확인(전자신문 25일 buy@ / 매경 20일 페이레터)'}],
+ overview:'신문 구독 관리와 월 구독료 지결. 매일 아침 9시 전 신문 배치는 일일 루틴으로 별도 관리.',
+ knowhow:['전자신문: 매월 25일 효성에프엠에스에서 buy@muhayu.com으로 영수증 수취.','매일경제: 매월 20일 홈페이지 페이레터 영수증 직접 확인.','지결 항목=도서인쇄비.','계정 비밀번호는 자격증명 저장소 별도 보관(문서 평문 금지).'],
+ contacts:'효성에프엠에스, etnews/매경 담당',
+ refs:['전자신문 etnews.com / 매일경제 subscribe.mk.co.kr','공용 법인카드 지출결의서 작성 매뉴얼(플렉스)(r14)'],
+ checklist:['전자신문 영수증 수취 확인(buy@ 메일)','매일경제 페이레터 영수증 확인','지결 상신 — 도서인쇄비'],
+ flexType:'newspaper'},
+
+{id:'phone', no:19, cat:'시설관리', name:'법인폰 통신요금 지결', kind:'정기', color:'blue', cycle:'매월 둘째주 수요일',
+ recur:[{type:'monthlyNthWeekday', nth:2, weekday:3}],
+ dday:[{off:-2, label:'D-2 청구 메일 수신 확인'}],
+ overview:'법인 휴대폰 이용요금을 지결한다.',
+ knowhow:['담당자에게 월 1회 메일 수신 후 지결.','2주차 상신 일정 고정, 누락 주의.'],
+ contacts:'총무 담당',
+ refs:['업무매뉴얼: 법인 휴대폰 이용요금 지출결의(r2)'],
+ checklist:['청구 메일 수신 확인(담당자)','지결 상신'],
+ flexType:'etc'},
+
+{id:'inspect', no:21, cat:'시설관리', name:'월별 점검 사항', kind:'정기', color:'green', cycle:'매월 1일',
+ recur:[{type:'monthlyDay', day:1}],
+ dday:[],
+ overview:'사무실 환경 체크리스트를 매월 점검한다.',
+ knowhow:['회의실 달력은 미래 2개월까지 보이도록 매월 1일 반드시 뜯기(예: 4월엔 4~6월 표시).','회의실·복도 테이블/소파 먼지·쓰레기 수시 확인.','미완료 항목은 다음 달로 이월 기록.'],
+ contacts:'총무 담당',
+ refs:['경영지원: 2026년 사무실 환경 점검 체크리스트(r6)'],
+ checklist:['회의실 달력 교체(미래 2개월 표시)','환경 점검 체크리스트 수행','미완료 항목 이월·기록']},
+
+{id:'firstaid', no:22, cat:'안전', name:'구급약 점검·교체', kind:'정기', color:'green', cycle:'매월 15일',
+ recur:[{type:'monthlyDay', day:15}],
+ dday:[],
+ overview:'구급용구·상비약 유효기간을 점검하고 경과분을 교체한다.',
+ knowhow:['19층은 지정 담당자, 연구소는 피플유닛 보유 — 두 곳 모두 점검.','상비약 유효기간 관리표가 핵심.'],
+ contacts:'19층 지정 담당자, 피플유닛(연구소)',
+ refs:['공지사항: 구급용구 및 상비약 구비 안내(r2)','구급약 유효기간표'],
+ checklist:['19층 구급약 점검','연구소 구급약 점검','유효기간표 갱신','경과분 교체 구매(필요 시 지결)']},
+
+{id:'coffee-visit', no:24, cat:'비품', name:'커피머신 세척 방문 지원', kind:'정기', color:'yellow', cycle:'매월 10일·25일',
+ recur:[{type:'monthlyDay', day:10},{type:'monthlyDay', day:25}],
+ dday:[],
+ overview:'매달 10일·25일 세척 방문 시 출입과 주차 등록을 지원한다.',
+ knowhow:['방문 시 문 열어주고 주차 등록(1시간 무료주차).'],
+ contacts:'커피머신 업체, 경영지원 담당',
+ refs:['buy@muhayu.com 세금계산서 수취'],
+ checklist:['방문 일정 확인·출입 지원','주차 등록(1시간 무료)']},
+
+{id:'coffee-pay', no:24, cat:'비품', name:'커피머신 원두·비용 지결', kind:'정기', color:'blue', cycle:'매월 마지막주 수요일',
+ recur:[{type:'monthlyLastWeekday', weekday:3}],
+ dday:[{off:-3, label:'D-3 세금계산서 수취 확인'}],
+ overview:'원두 구매와 월 커피머신 비용을 지결한다.',
+ knowhow:['buy 계정으로 세금계산서 오면 담당자에게 메일 전달받아 이미지 첨부해 지결 상신.'],
+ contacts:'경영지원 담당, 커피머신 업체',
+ refs:['buy@muhayu.com 세금계산서 수취'],
+ checklist:['세금계산서 수취 확인(buy@ → 담당자 전달)','이미지 첨부해 지결 상신','원두 재고 확인·구매'],
+ flexType:'tax'},
+
+{id:'checkup', no:20, cat:'복리후생', name:'건강검진(연 1회)', kind:'정기', color:'green', cycle:'매년 10월 1일 시작',
+ recur:[{type:'yearly', month:10, day:1}],
+ dday:[],
+ overview:'임직원 건강검진 진행, 4시간 연차 승인 처리, 연말 지결.',
+ knowhow:['건강검진 4시간 연차 사용자 리스트 업데이트 → 플렉스에서 승인 처리.','지결은 11월 또는 12월 진행.','미수검자 독려도 챙길 것.'],
+ contacts:'검진기관 / 인사',
+ refs:['업무매뉴얼: 임직원 건강검진 진행(r8)'],
+ checklist:['대상자 리스트 확인','4시간 연차 사용자 리스트 갱신·플렉스 승인','미수검자 독려','지결(11~12월) 일정 등록']},
+
+{id:'aircon', no:25, cat:'시설관리', name:'에어컨 필터 청소(여름 전)', kind:'정기', color:'yellow', cycle:'매년 5월 1일',
+ recur:[{type:'yearly', month:5, day:1}],
+ dday:[],
+ overview:'여름철 전 에어컨 필터를 청소한다(예방 차원).',
+ knowhow:['여름 시작 전 완료가 핵심 — 시기 놓치면 냉방 문제.','외주화 검토 중.'],
+ contacts:'청소/설비 업체',
+ refs:[],
+ checklist:['업체 연락·일정 예약','청소 진행 확인','비용 발생 시 지결']},
+
+{id:'vacation', no:8, cat:'복리후생', name:'근로자 휴가지원사업(연 1회)', kind:'정기', color:'yellow', cycle:'매년 1월 15일 공고 확인',
+ recur:[{type:'yearly', month:1, day:15}],
+ dday:[],
+ overview:'정부 근로자 휴가지원사업 신청·운영.',
+ knowhow:['모집 공고 시기를 놓치면 1년 대기.','전년도 신청 시점 기준으로 공고 확인.'],
+ contacts:'총무 담당',
+ refs:['업무매뉴얼: 근로자 휴가지원사업(r9)'],
+ checklist:['모집 공고 확인','신청 서류 준비·제출','선정 시 운영·정산']},
+
+/* ---------------- 수시 업무 ---------------- */
+{id:'onboard', no:1, cat:'복리후생', name:'신규 입사', kind:'수시', color:'green', cycle:'입사 발생 시',
+ intakeDesc:'자리·꽃바구니·명함·서명·PC까지 한 번에 펼침',
+ intake:[{k:'name', label:'입사자 이름', type:'text', req:true},{k:'unit', label:'유닛/부서', type:'text', req:true},{k:'date', label:'입사일', type:'date', req:true},{k:'pc', label:'PC 대여 필요 여부', type:'select', options:['확인 필요','필요','불필요']}],
+ overview:'신규 입사자 발생 시 자리 배치부터 비용 처리까지 일괄 진행한다.',
+ knowhow:['꽃바구니: 신규 입사자 축하 선물 발송 매뉴얼(r7) 참고.','명함·서명·명패·유선전화는 연관 업무와 한 묶음으로 처리.'],
+ contacts:'총무·경영지원 담당',
+ refs:['업무매뉴얼: 신규 입사자 축하 선물 발송(r7)'],
+ checklist:['입사자 정보 확인(이름·유닛·입사일)','꽃바구니 발송 대상 확인·발송','명함 필요 여부 확인 → 명함 신청','이메일 서명 생성','좌석 지정·좌석표 갱신','명패 제작·배치(드라이브 템플릿)','PC 대여 필요 여부 확인(키보드·마우스 재고 포함)','유선전화 필요 여부 확인','비용 발생 시 flex 지결 초안 생성','완료 기록·예외 메모 저장']},
+
+{id:'move', no:14, cat:'시설관리', name:'조직개편 / 자리 이동', kind:'수시', color:'green', cycle:'이동 발생 시',
+ intakeDesc:'자리·명함·서명·전화·명패 연쇄 처리',
+ intake:[{k:'name', label:'대상자(복수 가능)', type:'text', req:true},{k:'date', label:'이동일', type:'date', req:true},{k:'seat', label:'새 좌석 위치', type:'text'}],
+ overview:'조직개편·자리 이동 시 연관 업무를 연쇄 처리한다.',
+ knowhow:['유선전화·명패 업무와 연동.','공사 일정과 입주 일정 맞물리게 조율.'],
+ contacts:'총무 담당, 통신/네트워크 업체',
+ refs:['업무매뉴얼: 전화/네트워크 공사(r1)','좌석 배치도'],
+ checklist:['자리이동 대상·일정 컨펌','좌석표 갱신','명함 수정 신청','이메일 서명 수정','유선전화 변경(공사 업체 요청)','명패 교체','완료 기록']},
+
+{id:'condolence', no:1, cat:'복리후생', name:'경조사 접수(화환·조화)', kind:'수시', color:'yellow', cycle:'사유 발생 시',
+ intakeDesc:'관계·휴가일수로 발송 대상 자동 판정',
+ intake:[{k:'requester', label:'요청자(임직원)', type:'text', req:true},{k:'relation', label:'관계(예: 부친상, 결혼, 백부상)', type:'text', req:true},{k:'days', label:'경조 휴가일수(일)', type:'number', req:true},{k:'dest', label:'발송지(장례식장/예식장 주소)', type:'text'},{k:'cost', label:'비용 처리', type:'select', options:['회사 부담(지결)','확인 필요']}],
+ overview:'임직원 경조사 화환·조화를 오드그린에 요청해 발송한다.',
+ knowhow:['조화는 휴가일수 3일 이상인 경우에만 발송(주말로 줄어든 일수는 미고려).','1인당 3건 중 2건까지만.','백/숙부모 기준: 큰아빠·작은아빠 + (외가) 이모·외삼촌까지 인정(노사협의회 결정). 고모는 동일 항렬 → 백숙부모상으로 안내.','오드그린에 동일 양식으로 요청(메일 포워딩).'],
+ contacts:'총무 담당, 오드그린',
+ refs:['노사협의회 결정 이력(경조 기준)'],
+ checklist:['관계·휴가일수로 발송 대상 판정(조화: 3일 이상)','연간 한도 확인(1인 3건 중 2건)','오드그린 요청 메일 발송(동일 양식 포워딩)','발송 완료 확인','증빙 수취 후 flex 지결 초안 생성','예외 판단 기록(모호하면 노사협의회 이력 확인)']},
+
+{id:'complaint', no:12, cat:'비품', name:'GA 민원 요청', kind:'수시', color:'green', cycle:'민원 접수 시',
+ intakeDesc:'소모품 불출 / 시설 수리 / 구매 요청',
+ intake:[{k:'requester', label:'요청자', type:'text', req:true},{k:'type', label:'요청 유형', type:'select', options:['소모품 불출','시설 수리·교체','구매 요청'], req:true},{k:'detail', label:'요청 내용', type:'text', req:true}],
+ overview:'구성원 민원(소모품·수리·구매)을 접수해 처리한다.',
+ knowhow:['GA 민원으로 접수 후 불출.','컴퓨존은 세금계산서 현금거래 시 할인폭 큼(쿠팡보다 저렴).','개인 계정 구매는 법인 계정 전환 검토 과제.'],
+ contacts:'총무 담당',
+ refs:['민원신청: 소모품 구매 및 시설 수리·교체 요청(r16)','Google Docs: 소모품 불출 관리 문서'],
+ checklist:['요청 내용 분류(불출/수리/구매)','처리(불출·업체 수리 요청·구매)','재고 차감·불출 대장 기록','비용 발생 시 지결','요청자에게 완료 회신']},
+
+{id:'pc-rent', no:11, cat:'전산', name:'PC 대여', kind:'수시', color:'green', cycle:'신청 접수 시',
+ intakeDesc:'대여 기록·반납 예정일·미반납 알림',
+ intake:[{k:'name', label:'대여자', type:'text', req:true},{k:'date', label:'대여일', type:'date', req:true},{k:'due', label:'반납 예정일', type:'date', req:true},{k:'device', label:'장비(모델/식별)', type:'text'}],
+ overview:'PC(노트북) 대여 신청 접수와 자산 관리.',
+ knowhow:['대여 신청서(구글폼)로 접수.','자산 라벨·대여대장 정비 필요(분실 위험).'],
+ contacts:'전산/총무 담당',
+ refs:['업무매뉴얼: PC 대여 신청서(r2)','Google Form: PC 대여 신청서'],
+ checklist:['신청 정보 확인','대여 대장 기록','장비 지급(충전선 포함 확인)','반납 예정일 등록','반납 확인·장비 상태 점검','대장 갱신'],
+ hasDue:true},
+
+{id:'waste', no:23, cat:'안전', name:'폐기물 처리', kind:'수시', color:'green', cycle:'발생 시',
+ intakeDesc:'사진 기록 필수(재무기획 요청)',
+ intake:[{k:'item', label:'폐기물 내용', type:'text', req:true},{k:'date', label:'처리(예정)일', type:'date'}],
+ overview:'발생 폐기물을 1층 지정 장소로 배출하고 기록을 남긴다.',
+ knowhow:['폐기물 사진 반드시 촬영 후 드라이브 보관(재무기획 요청).','배출 즉시 촬영·업로드 습관화.'],
+ contacts:'재무기획',
+ refs:['드라이브 폐기물 사진 보관 폴더'],
+ checklist:['폐기물 확인','1층 지정 장소 배출','사진 촬영','드라이브 업로드(재무기획 요청)','업체/처리일 기록','비용 발생 시 지결 연결']},
+
+{id:'namecard', no:3, cat:'복리후생', name:'명함 요청', kind:'수시', color:'yellow', cycle:'입사·개편 시',
+ intakeDesc:'발주 정보 자동 생성',
+ intake:[{k:'name', label:'이름', type:'text', req:true},{k:'unit', label:'유닛/부서·직책', type:'text', req:true},{k:'mobile', label:'휴대폰', type:'text', req:true},{k:'tel', label:'유선번호', type:'text'},{k:'email', label:'이메일', type:'text', req:true}],
+ overview:'구성원 명함을 신청 접수하여 제작·배포한다.',
+ knowhow:['직책·부서 표기가 인사 시스템과 일치하는지 확인.','영문 표기 규칙도 함께 점검.','신청→제작→수령→배포 순.'],
+ contacts:'신청자 본인 / 제작 업체',
+ refs:['민원신청: 명함 및 이메일 서명 요청(r2)','업무매뉴얼: 명함 및 이메일 서명 신청, 제작, 배포 방법(r2, 작성중)'],
+ checklist:['신청 정보 확인(이름·유닛·연락처·이메일)','인사 시스템 표기 일치 확인','제작 업체 발주(발주 정보 사용)','수령 확인','배포','완료 기록'],
+ gen:'namecard'},
+
+{id:'signature', no:4, cat:'복리후생', name:'이메일 서명 요청', kind:'수시', color:'yellow', cycle:'입사·개편 시',
+ intakeDesc:'서명 HTML 자동 생성',
+ intake:[{k:'name', label:'이름', type:'text', req:true},{k:'unit', label:'유닛/부서·직책', type:'text', req:true},{k:'mobile', label:'휴대폰', type:'text'},{k:'tel', label:'유선번호', type:'text'},{k:'email', label:'이메일', type:'text', req:true}],
+ overview:'구성원 이메일 서명을 생성·배포한다(명함과 한 세트).',
+ knowhow:['명함과 동일 매뉴얼로 진행.','서명 HTML이 회사 표준 양식(폰트·로고·링크)과 일치하는지 확인.'],
+ contacts:'신청자 본인',
+ refs:['업무매뉴얼: 무하유 명함·이메일서명 요청 매뉴얼(r21)'],
+ checklist:['신청 정보 확인','서명 HTML 생성(표준 양식)','본인 전달·적용 확인'],
+ gen:'signature'},
+
+{id:'card-rent', no:26, cat:'공통', name:'법인카드(총무카드) 대여', kind:'수시', color:'blue', cycle:'요청 시',
+ intakeDesc:'대여대장·반납·영수증 회수',
+ intake:[{k:'name', label:'대여자', type:'text', req:true},{k:'purpose', label:'용도', type:'text', req:true},{k:'date', label:'대여일', type:'date', req:true},{k:'due', label:'반납 예정일', type:'date', req:true}],
+ overview:'총무 법인카드 대여·반납·사용 내역을 관리한다.',
+ knowhow:['사용 후 영수증 즉시 회수(분실·사적 사용 방지).','대여대장(대여자·일시·용도·반납) 기록 필수.'],
+ contacts:'총무 담당',
+ refs:['대여대장(위치 확인 필요)'],
+ checklist:['대여 요청 접수','대여대장 기록(대여자·일시·용도)','카드 지급','반납 확인','영수증 회수','사용 내역 대장 갱신·지결 연결'],
+ hasDue:true},
+
+{id:'phone-work', no:13, cat:'시설관리', name:'유선전화 추가/변경', kind:'수시', color:'yellow', cycle:'자리 이동 시',
+ intakeDesc:'공사 업체 요청·일정 조율',
+ intake:[{k:'target', label:'대상 좌석/구성원', type:'text', req:true},{k:'date', label:'희망 공사일', type:'date'}],
+ overview:'좌석 이동·신규 배치에 따른 유선전화·네트워크 공사.',
+ knowhow:['전화/네트워크 공사 업체 요청.','공사 일정과 입주 일정 맞물리게 조율.'],
+ contacts:'통신/네트워크 업체',
+ refs:['업무매뉴얼: 전화/네트워크 공사(r1)'],
+ checklist:['변경 내용 확인','공사 업체 요청','일정 조율·공사 진행','완료 확인·비용 지결']},
+
+{id:'office-buy', no:5, cat:'구매', name:'사무용품 구매(수시)', kind:'수시', color:'blue', cycle:'필요 시',
+ intakeDesc:'과제카드 vs 총무카드 결제수단 확인',
+ intake:[{k:'item', label:'구매 품목', type:'text', req:true},{k:'amount', label:'예상 금액(원)', type:'number'}],
+ overview:'사무 운영에 필요한 사무용품을 구매한다.',
+ knowhow:['기본은 과제비(과제카드)로 구매 — 구매 전 재무기획 자금 담당자에게 소멸 예정 과제 예산 확인.','과제카드 결제 설치파일은 자금 담당자 노트북에만 있음 → 사전 일정 조율 필수.','소진할 예산 없으면 총무카드 ISP로 진행.'],
+ contacts:'재무기획유닛 자금 담당자',
+ refs:['업무매뉴얼: 사무용품 구매 요청(r9)'],
+ checklist:['소멸 예정 과제 예산 사용 가능 여부 확인(자금 담당)','결제 수단 결정(과제카드/총무카드)','구매 진행','영수증 확보·지결'],
+ flexType:'office'}
+];
+
+/* flex 규칙 엔진 유형 정의 (지출결의_공통노하우 시트 기반) */
+const FLEX_TYPES = {
+  supplies:{label:'소모품 구매', account:'소모품비', titleWord:'사무실 소모품 구매'},
+  office:{label:'사무용품 구매', account:'소모품비', titleWord:'사무용품 구매'},
+  parking:{label:'사옥 주차비', account:'지급수수료', titleWord:'사옥 주차비 정기 결제',
+    memoHint:'금액을 동·층별로 구분 기재(B동 정기결제 / 19층 / 2층 — 실제 금액은 내부 대장 참고)'},
+  newspaper:{label:'신문 구독료', account:'도서인쇄비', titleWord:'신문 구독료(전자신문·매일경제)'},
+  snack:{label:'간식 구매', account:'복리후생비(추정, 확인 필요)', titleWord:'휴게실 간식 구매'},
+  tax:{label:'세금계산서 비용(청소·커피머신 등)', account:'업무 유형에 따라 선택', titleWord:'월 정기 비용'},
+  etc:{label:'기타', account:'확인 필요', titleWord:'비용'}
+};
+
+/* ============================================================ 상태 저장 */
+const LS_KEY = 'gaWorkflowCenter.v1';
+const LS_KEY_OLD = 'gaWorkflowHub.v1'; // 구버전(Hub) 기록 자동 인계용
+let state = load();
+function load(){
+  try{
+    const raw = localStorage.getItem(LS_KEY) || localStorage.getItem(LS_KEY_OLD);
+    if(raw){ const s = JSON.parse(raw); return Object.assign({done:{}, steps:{}, instances:[], customTpls:[], routine:{}}, s); }
+  }catch(e){ console.warn('상태 로드 실패', e); }
+  return {done:{}, steps:{}, instances:[], customTpls:[], routine:{}};
+}
+function save(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){ toast('저장 실패: 브라우저 저장 공간을 확인하세요'); } }
+function allTpls(){ return TPL.concat(state.customTpls||[]); }
+function tplById(id){ return allTpls().find(t=>t.id===id); }
+
+/* ============================================================ 날짜 유틸 */
+function fmt(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function parseD(s){ const [y,m,dd]=s.split('-').map(Number); return new Date(y,m-1,dd); }
+function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+function today(){ const n=new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); }
+function kdate(s){ const d=parseD(s); return (d.getMonth()+1)+'월 '+d.getDate()+'일('+'일월화수목금토'[d.getDay()]+')'; }
+function nthWeekday(y,m,nth,wd){ const first=new Date(y,m,1); let off=(wd-first.getDay()+7)%7; const day=1+off+(nth-1)*7; const d=new Date(y,m,day); return d.getMonth()===m?d:null; }
+function lastWeekday(y,m,wd){ const last=new Date(y,m+1,0); let off=(last.getDay()-wd+7)%7; return new Date(y,m,last.getDate()-off); }
+
+/* 반복 규칙 → 해당 월의 발생일 목록 */
+function ruleDates(rule,y,m){
+  const out=[];
+  if(rule.type==='monthlyDay'){ const last=new Date(y,m+1,0).getDate(); if(rule.day<=last) out.push(new Date(y,m,rule.day)); }
+  else if(rule.type==='monthlyNthWeekday'){ const d=nthWeekday(y,m,rule.nth,rule.weekday); if(d) out.push(d); }
+  else if(rule.type==='monthlyLastWeekday'){ out.push(lastWeekday(y,m,rule.weekday)); }
+  else if(rule.type==='weekly'){ let d=new Date(y,m,1); while(d.getMonth()===m){ if(d.getDay()===rule.weekday) out.push(new Date(d)); d=addDays(d,1);} }
+  else if(rule.type==='biweekly'){ const a=parseD(rule.anchor); let d=new Date(y,m,1); while(d.getMonth()===m){ if(d.getDay()===a.getDay()){ const wk=Math.round((d-a)/(7*86400000)); if(((wk%2)+2)%2===0) out.push(new Date(d)); } d=addDays(d,1);} }
+  else if(rule.type==='yearly'){ if(m===rule.month-1) out.push(new Date(y,m,rule.day)); }
+  return out;
+}
+/* 해당 월의 정기 업무 이벤트 (D-day 단계 포함 여부 선택) */
+function eventsForMonth(y,m,withDday){
+  const evs=[];
+  for(const t of allTpls()){
+    if(t.kind!=='정기' || !t.recur) continue;
+    // 본 일정: 이번 달 + 앞뒤 달(디데이 단계가 월 경계를 넘는 경우 대비)
+    for(const mm of [-1,0,1]){
+      const yy=new Date(y,m+mm,1);
+      for(const rule of t.recur){
+        for(const d of ruleDates(rule,yy.getFullYear(),yy.getMonth())){
+          if(mm===0) evs.push({date:fmt(d), tplId:t.id, label:t.name, color:t.color, dd:false});
+          if(withDday && t.dday){
+            for(const s of t.dday){
+              const sd=addDays(d,s.off);
+              if(sd.getFullYear()===y && sd.getMonth()===m) evs.push({date:fmt(sd), tplId:t.id, label:s.label+' · '+t.name, color:t.color, dd:true, base:fmt(d)});
+            }
+          }
+        }
+      }
+    }
+  }
+  evs.sort((a,b)=> a.date<b.date?-1:a.date>b.date?1:(a.dd===b.dd?0:a.dd?1:-1));
+  return evs;
+}
+function evKey(ev){ return ev.date+'|'+ev.tplId+(ev.dd?('|dd|'+ev.label):''); }
+
+/* ============================================================ 공통 UI */
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('on'); clearTimeout(t._tm); t._tm=setTimeout(()=>t.classList.remove('on'),1800); }
+function copyText(txt,msg){
+  const done=()=>toast(msg||'복사했습니다');
+  if(navigator.clipboard && window.isSecureContext!==false){ navigator.clipboard.writeText(txt).then(done).catch(()=>fallbackCopy(txt,done)); }
+  else fallbackCopy(txt,done);
+}
+function fallbackCopy(txt,done){ const ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy'); done();}catch(e){toast('복사 실패 — 직접 선택해 복사하세요');} ta.remove(); }
+function closeModal(){ document.getElementById('overlay').classList.remove('on'); }
+function openModal(html){ document.getElementById('modal').innerHTML=html+'<button class="x" onclick="closeModal()">×</button>'; document.getElementById('overlay').classList.add('on'); }
+
+/* 탭 전환 */
+let curView='dash';
+document.getElementById('nav').addEventListener('click', e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  switchView(b.dataset.v);
+});
+function switchView(v){
+  curView=v;
+  document.querySelector('main').classList.toggle('wide', v==='cal');
+  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on', b.dataset.v===v));
+  ['dash','cal','intake','tasks','flex','tpl'].forEach(k=>{ document.getElementById('v-'+k).style.display = k===v?'':'none'; });
+  render();
+}
+function render(){
+  if(curView==='dash') renderDash();
+  else if(curView==='cal') renderCal();
+  else if(curView==='intake') renderIntake();
+  else if(curView==='tasks') renderTasks();
+  else if(curView==='flex') renderFlex();
+  else if(curView==='tpl') renderTpls();
+}
+
+/* ============================================================ 대시보드 */
+function overdueEvents(){
+  // 지난 45일 내 미완료 정기 업무(디데이 단계 제외)
+  const t=today(); const out=[];
+  for(const mm of [-1,0]){
+    const base=new Date(t.getFullYear(), t.getMonth()+mm, 1);
+    for(const ev of eventsForMonth(base.getFullYear(), base.getMonth(), false)){
+      if(ev.dd) continue;
+      const d=parseD(ev.date);
+      if(d<t && (t-d)<=45*86400000 && !state.done[evKey(ev)]) out.push(ev);
+    }
+  }
+  return out;
+}
+function renderDash(){
+  const t=today(); const ts=fmt(t);
+  const monthEvs=eventsForMonth(t.getFullYear(), t.getMonth(), true);
+  const todays=monthEvs.filter(e=>e.date===ts);
+  const upcoming=monthEvs.filter(e=>{ const d=parseD(e.date); return d>t && (d-t)<=7*86400000 && !e.dd; });
+  const overdue=overdueEvents();
+  const mains=monthEvs.filter(e=>!e.dd);
+  const doneCnt=mains.filter(e=>state.done[evKey(e)]).length;
+  const pastCnt=mains.filter(e=>parseD(e.date)<=t).length;
+  const rate=pastCnt? Math.round(doneCnt/pastCnt*100):100;
+  const open=state.instances.filter(i=>i.status==='open');
+  const flexWait=open.filter(i=>i.checklist.some(s=>/지결|지출결의|품의/.test(s.text)&&s.status!=='done'));
+  const lateReturn=open.filter(i=>i.due && parseD(i.due)<t);
+  const routineDone=!!state.routine[ts];
+
+  let h='<div class="stats">'
+    +stat(todays.filter(e=>!e.dd).length,'오늘 정기 업무')
+    +stat(open.length,'진행 중 수시 업무')
+    +stat(overdue.length,'지연·이월 업무', overdue.length?'var(--red)':null)
+    +stat(flexWait.length,'flex 지결 대기')
+    +'<div class="stat"><div class="n">'+rate+'%</div><div class="l">이번 달 정기 완료율 ('+doneCnt+'/'+pastCnt+')</div><div class="bar"><div style="width:'+rate+'%"></div></div></div>'
+    +'</div>';
+
+  h+='<div class="grid2"><div>';
+  // 오늘 할 일
+  h+='<div class="card"><h2>오늘 할 일 <span class="cnt">'+kdate(ts)+'</span></h2>';
+  h+='<div class="row '+(routineDone?'done':'')+'" onclick="toggleRoutine(\''+ts+'\')"><span class="dot green"></span><div class="grow"><div class="t">매일 루틴 · 신문 배치(9시 전)</div><div class="s">1층 201/202/203호 우편함 → 연구소·2층 사업부 배치</div></div><span class="chip '+(routineDone?'green':'gray')+'">'+(routineDone?'완료':'미완료')+'</span></div>';
+  if(!todays.length) h+='<div class="empty">오늘 예정된 정기 업무가 없습니다.</div>';
+  for(const ev of todays) h+=evRow(ev);
+  h+='</div>';
+  // 지연
+  h+='<div class="card"><h2>지연·이월 업무 <span class="cnt">'+overdue.length+'</span></h2>';
+  if(!overdue.length) h+='<div class="empty">지연된 정기 업무가 없습니다 🎉</div>';
+  for(const ev of overdue) h+=evRow(ev,true);
+  h+='</div></div><div>';
+  // 수시 업무
+  h+='<div class="card"><h2>진행 중 수시 업무 <span class="cnt">'+open.length+'</span></h2>';
+  if(!open.length) h+='<div class="empty">진행 중인 수시 업무가 없습니다. <br/>[수시 업무 접수] 탭에서 등록하세요.</div>';
+  for(const i of open.slice(0,8)) h+=instRow(i);
+  h+='</div>';
+  if(lateReturn.length){
+    h+='<div class="card"><h2>⚠ 반납 예정일 경과 <span class="cnt">'+lateReturn.length+'</span></h2>';
+    for(const i of lateReturn) h+=instRow(i,true);
+    h+='</div>';
+  }
+  // 다가오는 일정
+  h+='<div class="card"><h2>7일 내 예정 <span class="cnt">'+upcoming.length+'</span></h2>';
+  if(!upcoming.length) h+='<div class="empty">7일 내 예정된 정기 업무가 없습니다.</div>';
+  for(const ev of upcoming.slice(0,10)) h+=evRow(ev);
+  h+='</div></div></div>';
+  document.getElementById('v-dash').innerHTML=h;
+}
+function stat(n,l,color){ return '<div class="stat"><div class="n"'+(color?' style="color:'+color+'"':'')+'>'+n+'</div><div class="l">'+l+'</div></div>'; }
+function evRow(ev,late){
+  const done=!!state.done[evKey(ev)];
+  return '<div class="row '+(done?'done':'')+'" onclick="openEvent(\''+ev.date+'\',\''+ev.tplId+'\','+ev.dd+',\''+esc(ev.label).replace(/'/g,'&#39;')+'\')">'
+    +'<span class="dot '+(late&&!done?'red':ev.color)+'"></span>'
+    +'<div class="grow"><div class="t">'+esc(ev.label)+'</div><div class="s">'+kdate(ev.date)+(ev.dd?' · D-day 단계':'')+'</div></div>'
+    +(done?'<span class="chip green">완료</span>':(late?'<span class="chip red">지연</span>':''))+'</div>';
+}
+function instRow(i,late){
+  const doneN=i.checklist.filter(s=>s.status==='done').length;
+  return '<div class="row" onclick="openInstance(\''+i.id+'\')"><span class="dot '+(late?'red':(tplById(i.tplId)||{}).color||'gray')+'"></span>'
+    +'<div class="grow"><div class="t">'+esc(i.title)+'</div><div class="s">'+esc(i.createdAt.slice(0,10))+' 접수 · 체크 '+doneN+'/'+i.checklist.length+(i.due?' · 반납 '+kdate(i.due):'')+'</div></div>'
+    +(late?'<span class="chip red">반납 지연</span>':'')+'</div>';
+}
+function toggleRoutine(ds){ if(state.routine[ds]) delete state.routine[ds]; else state.routine[ds]={at:new Date().toISOString()}; save(); render(); }
+
+/* ============================================================ 캘린더 */
+let calY, calM, showDday=true;
+(function(){ const n=today(); calY=n.getFullYear(); calM=n.getMonth(); })();
+function renderCal(){
+  const evs=eventsForMonth(calY,calM,showDday);
+  const byDate={};
+  for(const e of evs){ (byDate[e.date]=byDate[e.date]||[]).push(e); }
+  const first=new Date(calY,calM,1); const startWd=first.getDay(); const days=new Date(calY,calM+1,0).getDate();
+  const t=today();
+  let h='<div class="cal-head"><button onclick="moveCal(-1)">◀</button><h2>'+calY+'년 '+(calM+1)+'월</h2><button onclick="moveCal(1)">▶</button>'
+    +'<button onclick="calToday()" style="font-size:12px">오늘</button>'
+    +'<label><input type="checkbox" '+(showDday?'checked':'')+' onchange="showDday=this.checked;render()"/> D-day 단계 표시</label></div>';
+  h+='<div class="legend"><span><span class="dot blue"></span>결제·지출결의</span><span><span class="dot green"></span>점검·확인</span><span><span class="dot yellow"></span>업체 연락·예약</span><span><span class="dot red"></span>마감 경과(미완료)</span></div>';
+  h+='<table class="cal"><tr><th class="sun">일</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th>토</th></tr><tr>';
+  for(let i=0;i<startWd;i++) h+='<td class="dim"></td>';
+  for(let d=1; d<=days; d++){
+    const dt=new Date(calY,calM,d); const ds=fmt(dt);
+    if(dt.getDay()===0 && d>1) h+='</tr><tr>';
+    h+='<td class="'+(ds===fmt(t)?'today':'')+'"><div class="dnum">'+d+'</div>';
+    for(const ev of (byDate[ds]||[])){
+      const done=!!state.done[evKey(ev)];
+      const late=parseD(ev.date)<t && !done && !ev.dd;
+      h+='<button class="ev '+(late?'red':ev.color)+(done?' done':'')+(ev.dd?' dd':'')+'" onclick="openEvent(\''+ev.date+'\',\''+ev.tplId+'\','+ev.dd+',\''+esc(ev.label).replace(/'/g,'&#39;')+'\')" title="'+esc(ev.label)+'">'+(ev.dd?'▸ ':'')+esc(ev.label)+'</button>';
+    }
+    h+='</td>';
+    if(d===days){ const rem=6-dt.getDay(); for(let i=0;i<rem;i++) h+='<td class="dim"></td>'; }
+  }
+  h+='</tr></table>';
+  h+='<p class="muted" style="margin-top:8px">정기 업무는 반복 규칙으로 자동 생성됩니다. 일정을 누르면 체크리스트·완료 처리가 열립니다.</p>';
+  document.getElementById('v-cal').innerHTML=h;
+}
+function moveCal(n){ calM+=n; if(calM<0){calM=11;calY--;} if(calM>11){calM=0;calY++;} render(); }
+function calToday(){ const n=today(); calY=n.getFullYear(); calM=n.getMonth(); render(); }
+
+/* 정기 이벤트 모달 */
+function openEvent(date,tplId,dd,label){
+  const t=tplById(tplId); if(!t) return;
+  const ev={date, tplId, dd, label};
+  const key=evKey(ev);
+  const done=state.done[key];
+  let h='<h3>'+esc(dd?label:t.name)+'</h3><p class="muted">'+kdate(date)+' · '+esc(t.cycle||'')+' · '+esc(t.cat)+'</p>';
+  if(dd){
+    h+='<div class="info">본 일정의 사전/사후 단계입니다. 완료 처리만 지원합니다.</div>';
+  }else{
+    h+='<div class="sec"><h4>체크리스트</h4>'+renderSteps('ev:'+date+'|'+tplId, t.checklist||[])+'</div>';
+    if(t.knowhow&&t.knowhow.length) h+='<div class="sec"><h4>노하우·주의</h4><ul style="padding-left:18px;font-size:12.5px">'+t.knowhow.map(k=>'<li>'+esc(k)+'</li>').join('')+'</ul></div>';
+    if(t.flexType) h+='<div class="sec"><button class="btn ghost sm" onclick="closeModal();gotoFlex(\''+t.flexType+'\')">→ 이 업무의 flex 지결 초안 만들기</button></div>';
+  }
+  h+='<div class="sec" style="display:flex;gap:8px;align-items:center">'
+    +(done?'<button class="btn gray" onclick="markDone(\''+key.replace(/'/g,'&#39;')+'\',false)">완료 취소</button><span class="chip green">완료 · '+esc((done.at||'').slice(0,10))+'</span>'
+          :'<button class="btn" onclick="markDone(\''+key.replace(/'/g,'&#39;')+'\',true)">이 업무 완료 처리</button>')
+    +'</div>';
+  openModal(h);
+}
+function markDone(key,on){ if(on) state.done[key]={at:new Date().toISOString()}; else delete state.done[key]; save(); closeModal(); render(); }
+
+/* 스텝(체크리스트) 렌더 — scope: 'ev:date|tpl' 또는 'inst:id' */
+const ST_LABEL={todo:'진행 전', done:'완료', hold:'보류', exception:'예외'};
+const ST_NEXT={todo:'done', done:'hold', hold:'exception', exception:'todo'};
+function stepState(scope,idx){
+  if(scope.startsWith('inst:')){ const i=state.instances.find(x=>x.id===scope.slice(5)); return i? i.checklist[idx] : {status:'todo',memo:''}; }
+  const st=(state.steps[scope]||{})[idx]; return st||{status:'todo',memo:''};
+}
+function renderSteps(scope, texts){
+  let h='';
+  texts.forEach((txt,idx)=>{
+    const st=stepState(scope,idx);
+    h+='<div class="step s-'+st.status+'"><button class="st-btn" onclick="cycleStep(\''+scope.replace(/'/g,'&#39;')+'\','+idx+')">'+ST_LABEL[st.status]+'</button>'
+      +'<div class="txt">'+esc(txt)+'</div>'
+      +'<input class="memo" placeholder="메모" value="'+esc(st.memo||'')+'" onchange="stepMemo(\''+scope.replace(/'/g,'&#39;')+'\','+idx+',this.value)"/></div>';
+  });
+  return h||'<div class="empty">체크리스트가 없습니다.</div>';
+}
+function cycleStep(scope,idx){
+  if(scope.startsWith('inst:')){
+    const i=state.instances.find(x=>x.id===scope.slice(5)); if(!i) return;
+    i.checklist[idx].status=ST_NEXT[i.checklist[idx].status];
+    save(); openInstance(i.id); renderBackground(); return;
+  }
+  const bag=state.steps[scope]=state.steps[scope]||{};
+  const st=bag[idx]=bag[idx]||{status:'todo',memo:''};
+  st.status=ST_NEXT[st.status]; save();
+  const m=scope.slice(3).split('|'); openEvent(m[0], m[1], false, ''); renderBackground();
+}
+function stepMemo(scope,idx,val){
+  if(scope.startsWith('inst:')){ const i=state.instances.find(x=>x.id===scope.slice(5)); if(i){ i.checklist[idx].memo=val; save(); } return; }
+  const bag=state.steps[scope]=state.steps[scope]||{}; (bag[idx]=bag[idx]||{status:'todo'}).memo=val; save();
+}
+function renderBackground(){ render(); }
+
+/* ============================================================ 수시 업무 접수 */
+function renderIntake(){
+  const list=allTpls().filter(t=>t.kind==='수시');
+  let h='<div class="card"><h2>발생 업무 접수함 <span style="margin-left:auto"><button class="btn ghost sm" onclick="openNewIntakeTpl()">+ 업무 유형 추가</button></span></h2><p class="muted" style="margin-bottom:12px">업무 유형을 선택하면 필요한 질문만 물은 뒤 체크리스트가 자동 등록됩니다. (2차 개발에서 구글챗 <b>/ga</b> 명령으로 이동 예정)</p>';
+  h+='<div class="intake-grid">';
+  for(const t of list){
+    h+='<button class="intake-card" onclick="openIntakeForm(\''+t.id+'\')"><div class="t">'+esc(t.name)+'</div><div class="s">'+esc(t.intakeDesc||t.overview||'')+'</div><div style="margin-top:7px"><span class="chip '+t.color+'">'+esc(t.cat)+'</span></div></button>';
+  }
+  h+='<button class="intake-card add" onclick="openNewIntakeTpl()"><span class="plus">＋</span><span>새 업무 유형 추가</span></button>';
+  h+='</div></div>';
+  document.getElementById('v-intake').innerHTML=h;
+}
+/* 접수함에서 새 수시 업무 유형(사용자 템플릿) 등록 */
+function openNewIntakeTpl(){
+  const cats=['복리후생','구매','시설관리','비품','안전','전산','공통'];
+  let h='<h3>새 업무 유형 추가</h3><p class="muted">여기서 추가한 유형은 접수함 카드와 업무 템플릿 목록에 함께 등록됩니다.</p><div class="form" id="new-tpl-form">'
+    +'<label>업무명</label><input type="text" id="nt-name" placeholder="예: 회의실 예약 대행"/>'
+    +'<label>분류</label><select id="nt-cat">'+cats.map(c=>'<option>'+c+'</option>').join('')+'</select>'
+    +'<label>카드 설명 <span class="opt">(선택)</span></label><input type="text" id="nt-desc" placeholder="접수 카드에 보일 한 줄 설명"/>'
+    +'<label>접수 시 물어볼 질문 <span class="opt">(한 줄에 하나, 비우면 "요청자/요청 내용" 기본)</span></label><textarea id="nt-questions" placeholder="예:\n요청자\n희망 일시\n요청 내용"></textarea>'
+    +'<label>체크리스트 <span class="opt">(한 줄에 하나)</span></label><textarea id="nt-steps" placeholder="예:\n요청 내용 확인\n처리\n완료 회신"></textarea>'
+    +'<div style="margin-top:15px"><button class="btn" onclick="saveNewIntakeTpl()">유형 추가</button></div></div>';
+  openModal(h);
+}
+function saveNewIntakeTpl(){
+  const name=document.getElementById('nt-name').value.trim();
+  if(!name){ toast('업무명을 입력하세요'); return; }
+  const qLines=document.getElementById('nt-questions').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  const intake=qLines.length? qLines.map((q,i)=>({k:'q'+i, label:q, type:'text', req:i===0}))
+    : [{k:'requester',label:'요청자',type:'text',req:true},{k:'detail',label:'요청 내용',type:'text',req:true}];
+  const steps=document.getElementById('nt-steps').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  const t={id:'c'+Date.now().toString(36), custom:true, name, cat:document.getElementById('nt-cat').value,
+    kind:'수시', color:'green', cycle:'발생 시', recur:null, dday:[],
+    overview:document.getElementById('nt-desc').value.trim(), knowhow:[], refs:[],
+    checklist:steps.length?steps:['요청 내용 확인','처리','완료 회신'],
+    intake, intakeDesc:document.getElementById('nt-desc').value.trim()||'사용자 정의 업무'};
+  state.customTpls.push(t); save(); closeModal(); render(); toast('"'+name+'" 유형을 추가했습니다');
+}
+function openIntakeForm(tplId){
+  const t=tplById(tplId); if(!t) return;
+  let h='<h3>'+esc(t.name)+' 접수</h3><p class="muted">'+esc(t.overview||'')+'</p><div class="form" id="intake-form">';
+  for(const f of (t.intake||[])){
+    h+='<label>'+esc(f.label)+(f.req?'':' <span class="opt">(선택)</span>')+'</label>';
+    if(f.type==='select') h+='<select data-k="'+f.k+'">'+f.options.map(o=>'<option>'+esc(o)+'</option>').join('')+'</select>';
+    else h+='<input type="'+(f.type||'text')+'" data-k="'+f.k+'" '+(f.type==='date'&&f.k==='date'?'value="'+fmt(today())+'"':'')+' />';
+  }
+  if(t.knowhow&&t.knowhow.length) h+='<div class="warn" style="margin-top:12px"><b>판단 기준</b><br/>'+t.knowhow.map(esc).join('<br/>')+'</div>';
+  h+='<div style="margin-top:15px"><button class="btn" onclick="submitIntake(\''+tplId+'\')">접수하고 체크리스트 생성</button></div></div>';
+  openModal(h);
+}
+function submitIntake(tplId){
+  const t=tplById(tplId); if(!t) return;
+  const answers={};
+  let missing=null;
+  document.querySelectorAll('#intake-form [data-k]').forEach(el=>{
+    answers[el.dataset.k]=el.value.trim();
+    const f=(t.intake||[]).find(x=>x.k===el.dataset.k);
+    if(f&&f.req&&!el.value.trim()&&!missing) missing=f.label;
+  });
+  if(missing){ toast('"'+missing+'" 입력이 필요합니다'); return; }
+  const inst={
+    id:'i'+Date.now().toString(36)+Math.floor(Math.random()*1000).toString(36),
+    tplId:t.id,
+    title:t.name+(answers.name?' · '+answers.name:(answers.requester?' · '+answers.requester:(answers.item?' · '+answers.item:''))),
+    createdAt:new Date().toISOString(),
+    answers, status:'open',
+    due:answers.due||null,
+    checklist:(t.checklist||[]).map(txt=>({text:txt, status:'todo', memo:''}))
+  };
+  // 경조사 자동 판정
+  if(t.id==='condolence'){
+    const days=Number(answers.days||0);
+    inst.verdict = days>=3 ? '발송 대상(휴가일수 '+days+'일 ≥ 3일)' : '조화 발송 기준 미달(휴가일수 '+days+'일 < 3일) — 담당자 최종 판단 필요';
+  }
+  state.instances.unshift(inst); save();
+  closeModal(); switchView('tasks'); openInstance(inst.id);
+  toast('체크리스트가 등록되었습니다');
+}
+
+/* ============================================================ 진행 중 업무 */
+let taskFilter='open';
+function renderTasks(){
+  const list=state.instances.filter(i=>taskFilter==='all'?true:i.status===taskFilter);
+  let h='<div class="card"><h2>수시 업무 목록 <span class="cnt">'+list.length+'</span></h2>';
+  h+='<div class="filters">'
+    +['open|진행 중','done|완료','all|전체'].map(f=>{const [k,l]=f.split('|');return '<button class="'+(taskFilter===k?'on':'')+'" onclick="taskFilter=\''+k+'\';render()">'+l+'</button>';}).join('')+'</div>';
+  if(!list.length) h+='<div class="empty">해당하는 업무가 없습니다. [수시 업무 접수] 탭에서 등록하세요.</div>';
+  for(const i of list) h+=instRow(i, i.status==='open'&&i.due&&parseD(i.due)<today());
+  h+='</div>';
+  document.getElementById('v-tasks').innerHTML=h;
+}
+function openInstance(id){
+  const i=state.instances.find(x=>x.id===id); if(!i) return;
+  const t=tplById(i.tplId)||{};
+  let h='<h3>'+esc(i.title)+'</h3><p class="muted">'+esc(i.createdAt.slice(0,10))+' 접수 · '+esc(t.cat||'')+(i.due?' · 반납 예정 '+kdate(i.due):'')+'</p>';
+  if(i.verdict) h+='<div class="'+(i.verdict.startsWith('발송 대상')?'info':'warn')+'"><b>자동 판정</b> · '+esc(i.verdict)+'</div>';
+  // 접수 내용
+  const aKeys=Object.keys(i.answers||{}).filter(k=>i.answers[k]);
+  if(aKeys.length){
+    h+='<div class="sec"><h4>접수 내용</h4>';
+    for(const k of aKeys){ const f=(t.intake||[]).find(x=>x.k===k); h+='<div class="field-line"><div class="k">'+esc(f?f.label:k)+'</div><div class="v">'+esc(i.answers[k])+'</div></div>'; }
+    h+='</div>';
+  }
+  h+='<div class="sec"><h4>체크리스트 (버튼을 눌러 진행 전→완료→보류→예외 순환)</h4>'+renderSteps('inst:'+i.id, i.checklist.map(s=>s.text))+'</div>';
+  // 생성기
+  if(t.gen==='namecard') h+='<div class="sec"><button class="btn ghost sm" onclick="copyText(genNamecard(\''+i.id+'\'),\'발주 정보를 복사했습니다\')">명함 발주 정보 복사</button></div>';
+  if(t.gen==='signature') h+='<div class="sec"><button class="btn ghost sm" onclick="copyText(genSignature(\''+i.id+'\'),\'서명 HTML을 복사했습니다\')">이메일 서명 HTML 복사</button> <span class="muted">회사 표준 로고·링크는 붙여넣은 뒤 확인하세요.</span></div>';
+  if(t.flexType||/지결|지출/.test((t.checklist||[]).join())) h+='<div class="sec"><button class="btn ghost sm" onclick="closeModal();gotoFlex(\''+(t.flexType||'etc')+'\')">→ flex 지결 초안 만들기</button></div>';
+  h+='<div class="sec" style="display:flex;gap:8px">'
+    +(i.status==='open'?'<button class="btn" onclick="finishInstance(\''+i.id+'\')">업무 완료 처리</button>':'<button class="btn gray" onclick="reopenInstance(\''+i.id+'\')">다시 열기</button>')
+    +'<button class="btn gray" onclick="deleteInstance(\''+i.id+'\')">삭제</button></div>';
+  openModal(h);
+}
+function finishInstance(id){ const i=state.instances.find(x=>x.id===id); if(!i)return;
+  const undone=i.checklist.filter(s=>s.status==='todo').length;
+  if(undone && !confirm('진행 전 단계가 '+undone+'개 남아 있습니다. 완료 처리할까요?')) return;
+  i.status='done'; i.doneAt=new Date().toISOString(); save(); closeModal(); render(); }
+function reopenInstance(id){ const i=state.instances.find(x=>x.id===id); if(i){ i.status='open'; save(); closeModal(); render(); } }
+function deleteInstance(id){ if(!confirm('이 업무 기록을 삭제할까요? (이력이 사라집니다)')) return; state.instances=state.instances.filter(x=>x.id!==id); save(); closeModal(); render(); }
+
+function genNamecard(id){ const i=state.instances.find(x=>x.id===id); const a=i.answers;
+  return ['[명함 발주 정보]','이름: '+(a.name||''),'유닛/직책: '+(a.unit||''),'휴대폰: '+(a.mobile||''),'유선번호: '+(a.tel||'-'),'이메일: '+(a.email||''),'','※ 인사 시스템 표기·영문 표기 확인 후 발주'].join('\n'); }
+function genSignature(id){ const i=state.instances.find(x=>x.id===id); const a=i.answers;
+  return ['<table style="font-family:\'Malgun Gothic\',sans-serif;font-size:12px;color:#333;line-height:1.6">','<tr><td>','<b style="font-size:14px">'+esc(a.name||'')+'</b> <span style="color:#888">| '+esc(a.unit||'')+'</span><br/>','(주)무하유<br/>','Mobile. '+esc(a.mobile||'')+(a.tel?' &nbsp;Tel. '+esc(a.tel):'')+'<br/>','Email. <a href="mailto:'+esc(a.email||'')+'">'+esc(a.email||'')+'</a>','</td></tr>','</table>'].join('\n'); }
+
+/* ============================================================ flex 초안 생성기 */
+let flexPreset=null;
+function gotoFlex(type){ flexPreset=type; switchView('flex'); }
+function renderFlex(){
+  const opts=Object.keys(FLEX_TYPES).map(k=>'<option value="'+k+'" '+(flexPreset===k?'selected':'')+'>'+esc(FLEX_TYPES[k].label)+'</option>').join('');
+  let h='<div class="grid2"><div class="card"><h2>입력</h2><div class="form">'
+    +'<label>업무 유형</label><select id="fx-type" onchange="flexHint()">'+opts+'</select>'
+    +'<div id="fx-hint"></div>'
+    +'<label>금액(원)</label><input type="number" id="fx-amount" placeholder="예: 132000"/>'
+    +'<label>결제 수단</label><select id="fx-pay"><option>총무 법인카드</option><option>과제카드</option><option>계좌이체(세금계산서)</option><option>기타</option></select>'
+    +'<label>영수증</label><select id="fx-receipt"><option>있음(flex 영수증 확인)</option><option>있음(별도 사진)</option><option>없음·확인 필요</option></select>'
+    +'<label>세금계산서 발행일 <span class="opt">(세금계산서 건만 — 지출일 자동 계산)</span></label><input type="date" id="fx-taxdate"/>'
+    +'<label>구매·지출 내용</label><textarea id="fx-detail" placeholder="예: 회의실 보드마카, 멀티탭, A4 용지"></textarea>'
+    +'<div style="margin-top:14px"><button class="btn" onclick="genFlex()">지출결의 초안 생성</button></div>'
+    +'</div></div>'
+    +'<div class="card"><h2>flex 지출결의 초안</h2><div id="fx-out"><div class="empty">왼쪽 입력 후 [초안 생성]을 누르세요.<br/>제목·품목·비고·지출일을 각각 복사해 flex에 붙여넣습니다.</div></div></div></div>'
+    +'<div class="card"><h2>지출결의 공통 규칙(요약)</h2><ul style="padding-left:18px;font-size:12.5px;color:var(--sub)">'
+    +'<li>총무 관련 물품 → 계정과목 <b>소모품비</b> / 사옥 주차비 → <b>지급수수료</b>(동·층별 금액 메모 필수) / 신문 구독료 → <b>도서인쇄비</b></li>'
+    +'<li>30만원 이내 소액 소모품·사무용품은 품의 없이 총무 법인카드 결제 후 지결. 30만원 초과는 품의 필요 여부 확인.</li>'
+    +'<li>세금계산서 건 지출일은 발행일로부터 도래하는 매주 <b>월요일</b>. 세금계산서 열람 비밀번호는 사업자등록번호.</li>'
+    +'<li>법인카드 결제 건은 flex [비용]→[영수증]에서 영수증 사진 첨부 + 메모에 구매 내용 기재.</li>'
+    +'<li>지결 메모는 금액·용도를 정확히 기재해야 반려되지 않음.</li></ul>'
+    +'<p class="muted" style="margin-top:6px">※ 초안은 참고용입니다. 상신 전 담당자가 반드시 최종 확인합니다(자동 상신 없음 — 회사 정책).</p></div>';
+  document.getElementById('v-flex').innerHTML=h;
+  flexHint();
+  flexPreset=null;
+}
+function flexHint(){
+  const k=document.getElementById('fx-type').value; const t=FLEX_TYPES[k];
+  document.getElementById('fx-hint').innerHTML = t.memoHint? '<div class="warn">'+esc(t.memoHint)+'</div>' : '';
+}
+function nextMonday(d){ const x=new Date(d); const off=(8-x.getDay())%7; return addDays(x, off===0?0:off); } // 발행일이 월요일이면 당일
+function genFlex(){
+  const type=document.getElementById('fx-type').value;
+  const T=FLEX_TYPES[type];
+  const amount=Number(document.getElementById('fx-amount').value||0);
+  const pay=document.getElementById('fx-pay').value;
+  const receipt=document.getElementById('fx-receipt').value;
+  const taxdate=document.getElementById('fx-taxdate').value;
+  const detail=document.getElementById('fx-detail').value.trim();
+  const isTax=pay.includes('세금계산서')||!!taxdate;
+
+  const title='[총무] '+T.titleWord+' 지출결의';
+  let account=T.account;
+  // 지출일
+  let payday='', paydayNote='';
+  if(isTax && taxdate){ payday=fmt(nextMonday(parseD(taxdate))); paydayNote='세금계산서 발행일('+taxdate+') 이후 도래 월요일'; }
+  else if(pay.includes('법인카드')||pay.includes('과제카드')){ payday=fmt(today()); paydayNote='카드 결제일 기준(오늘) — 실제 결제일로 수정'; }
+  // 비고
+  let memo=detail? detail+' 건입니다.' : '(지출 내용 입력 필요)';
+  if(T.memoHint) memo+=' ※ '+T.memoHint;
+  // 첨부
+  const attach=[];
+  if(pay.includes('법인카드')||pay.includes('과제카드')) attach.push('법인카드 영수증(flex [비용]→[영수증] 확인 후 사진 첨부)');
+  if(isTax) attach.push('세금계산서 PDF(열람 비밀번호=사업자등록번호)');
+  if(receipt.startsWith('없음')) attach.push('⚠ 영수증 확보 필요 — 증빙 없으면 반려 위험');
+  // 품의 판단
+  let po;
+  const isSmallGoods = (type==='supplies'||type==='office'||type==='snack');
+  if(isSmallGoods && amount>0 && amount<=PO_THRESHOLD) po='불필요로 추정 — 30만원 이하 소모품·사무용품(법인카드 결제 후 지결)';
+  else if(isSmallGoods && amount>PO_THRESHOLD) po='품의 필요 여부 확인 — 30만원 초과';
+  else if(type==='parking'||type==='newspaper'||type==='tax') po='정기 지출 건 — 기존 처리 방식 유지(품의 불필요 관행 확인)';
+  else po='담당자 확인 필요';
+  const checks=['flex 영수증 자동 수신 여부','실제 결제 카드·결제일','구매 품목 누락 여부'];
+  if(amount<=0) checks.unshift('⚠ 금액 미입력 — 금액 확인');
+
+  const full=['flex 지출결의 초안','','제목: '+title,'품목(계정과목): '+account,'금액: '+(amount?amount.toLocaleString('ko-KR')+'원':'(입력 필요)'),
+    '지출일: '+(payday?payday+' ('+paydayNote+')':'(확인 필요)'),'비고: '+memo,'첨부: '+(attach.join(' / ')||'-'),
+    '품의 필요 여부: '+po,'확인 필요: '+checks.join(', ')].join('\n');
+
+  const line=(k,v)=>'<div class="field-line"><div class="k">'+k+'</div><div class="v">'+esc(v)+'</div><button class="copy-btn" onclick="copyText(this.previousElementSibling.textContent,\''+k+' 복사됨\')">복사</button></div>';
+  let h=line('제목',title)+line('품목',account)+(amount?line('금액',amount.toLocaleString('ko-KR')+'원'):'')
+    +(payday?line('지출일',payday):'')+line('비고',memo);
+  h+='<div class="field-line"><div class="k">첨부 체크</div><div class="v">'+attach.map(esc).join('<br/>')+'</div></div>';
+  h+='<div class="'+(po.startsWith('불필요')?'info':'warn')+'">품의: '+esc(po)+'</div>';
+  h+='<div class="info">확인 필요: '+esc(checks.join(', '))+'</div>';
+  h+='<div style="margin-top:12px;display:flex;gap:8px"><button class="btn sm" onclick="copyText(document.getElementById(\'fx-full\').textContent,\'전체 초안 복사됨\')">전체 복사</button></div>';
+  h+='<pre class="flex-out" id="fx-full" style="margin-top:10px">'+esc(full)+'</pre>';
+  document.getElementById('fx-out').innerHTML=h;
+}
+
+/* ============================================================ 템플릿 */
+function renderTpls(){
+  const cats=['복리후생','구매','시설관리','비품','안전','전산','공통'];
+  let h='<div class="card"><h2>업무 템플릿 <span class="cnt">'+allTpls().length+'개</span></h2><p class="muted">총무 마스터리스트(2026-06-04 정리본) 기반. 정기 업무는 반복 규칙으로 캘린더에 자동 생성됩니다.</p></div>';
+  for(const c of cats){
+    const list=allTpls().filter(t=>t.cat===c);
+    if(!list.length) continue;
+    h+='<div class="cat-h">'+c+' ('+list.length+')</div>';
+    for(const t of list){
+      h+='<details class="tpl"><summary><span class="dot '+t.color+'"></span><span class="t">'+esc(t.name)+'</span>'
+        +'<span class="chip '+(t.kind==='정기'?'blue':'yellow')+'">'+t.kind+'</span><span class="muted">'+esc(t.cycle||'')+'</span>'
+        +(t.custom?'<button class="btn sm gray" onclick="event.preventDefault();delCustomTpl(\''+t.id+'\')">삭제</button>':'')
+        +'</summary><div class="body">';
+      if(t.overview) h+='<h4>개요</h4><p style="font-size:12.5px">'+esc(t.overview)+'</p>';
+      if(t.knowhow&&t.knowhow.length) h+='<h4>노하우·주의</h4><ul>'+t.knowhow.map(k=>'<li>'+esc(k)+'</li>').join('')+'</ul>';
+      if(t.checklist&&t.checklist.length) h+='<h4>체크리스트</h4><ul>'+t.checklist.map(k=>'<li>'+esc(k)+'</li>').join('')+'</ul>';
+      if(t.contacts) h+='<h4>관련 담당자</h4><p style="font-size:12.5px">'+esc(t.contacts)+'</p>';
+      if(t.refs&&t.refs.length) h+='<h4>참조 문서·시트</h4><ul>'+t.refs.map(k=>'<li>'+esc(k)+'</li>').join('')+'</ul>';
+      h+='</div></details>';
+    }
+  }
+  // 커스텀 템플릿 추가
+  h+='<div class="card" style="margin-top:18px"><h2>사용자 템플릿 추가</h2><div class="form grid2">'
+    +'<div><label>업무명</label><input type="text" id="ct-name"/>'
+    +'<label>분류</label><select id="ct-cat">'+cats.map(c=>'<option>'+c+'</option>').join('')+'</select>'
+    +'<label>구분</label><select id="ct-kind" onchange="document.getElementById(\'ct-recur-wrap\').style.display=this.value===\'정기\'?\'\':\'none\'"><option>수시</option><option>정기</option></select>'
+    +'<div id="ct-recur-wrap" style="display:none"><label>반복 규칙</label><select id="ct-recur"><option value="">선택</option><option value="d1">매월 1일</option><option value="d15">매월 15일</option><option value="lastMon">매월 마지막주 월요일</option><option value="w1">매주 월요일</option><option value="bw">격주 월요일</option></select></div></div>'
+    +'<div><label>체크리스트 (한 줄에 하나)</label><textarea id="ct-steps" style="min-height:130px" placeholder="예:\n청구서 확인\n지결 상신"></textarea>'
+    +'<div style="margin-top:10px"><button class="btn" onclick="addCustomTpl()">템플릿 추가</button></div></div>'
+    +'</div></div>';
+  // 데이터 관리
+  h+='<div class="card"><h2>데이터</h2><p class="muted">모든 기록은 이 브라우저(localStorage)에만 저장됩니다. PC를 옮기거나 백업할 땐 [데이터 내보내기]를 사용하세요.</p>'
+    +'<div style="margin-top:8px;display:flex;gap:8px"><button class="btn ghost sm" onclick="exportData()">내보내기(JSON)</button>'
+    +'<button class="btn sm gray" onclick="resetData()">전체 초기화</button></div></div>';
+  document.getElementById('v-tpl').innerHTML=h;
+}
+function addCustomTpl(){
+  const name=document.getElementById('ct-name').value.trim();
+  if(!name){ toast('업무명을 입력하세요'); return; }
+  const kind=document.getElementById('ct-kind').value;
+  const rk=document.getElementById('ct-recur').value;
+  const RECUR_MAP={d1:[{type:'monthlyDay',day:1}], d15:[{type:'monthlyDay',day:15}], lastMon:[{type:'monthlyLastWeekday',weekday:1}], w1:[{type:'weekly',weekday:1}], bw:[{type:'biweekly',anchor:'2026-01-05'}]};
+  const CYCLE_MAP={d1:'매월 1일', d15:'매월 15일', lastMon:'매월 마지막주 월요일', w1:'매주 월요일', bw:'격주 월요일'};
+  if(kind==='정기'&&!rk){ toast('반복 규칙을 선택하세요'); return; }
+  const steps=document.getElementById('ct-steps').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  const t={id:'c'+Date.now().toString(36), custom:true, name, cat:document.getElementById('ct-cat').value, kind,
+    color:kind==='정기'?'blue':'green', cycle:kind==='정기'?CYCLE_MAP[rk]:'발생 시', recur:kind==='정기'?RECUR_MAP[rk]:null,
+    dday:[], overview:'', knowhow:[], refs:[], checklist:steps.length?steps:['처리'], intake:[{k:'detail',label:'요청 내용',type:'text',req:true}], intakeDesc:'사용자 정의 업무'};
+  state.customTpls.push(t); save(); render(); toast('템플릿을 추가했습니다');
+}
+function delCustomTpl(id){ if(!confirm('이 사용자 템플릿을 삭제할까요?')) return; state.customTpls=state.customTpls.filter(t=>t.id!==id); save(); render(); }
+
+/* ============================================================ 데이터 입출력 */
+function exportData(){
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='ga-workflow-center-backup-'+fmt(today())+'.json'; a.click(); URL.revokeObjectURL(a.href);
+  toast('백업 파일을 내려받았습니다');
+}
+function importData(input){
+  const f=input.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{ try{
+      const s=JSON.parse(r.result);
+      if(!s||typeof s!=='object'||!('instances' in s)) throw new Error('형식 불일치');
+      if(!confirm('현재 데이터를 가져온 파일로 교체할까요?')) return;
+      state=Object.assign({done:{},steps:{},instances:[],customTpls:[],routine:{}}, s); save(); render(); toast('가져오기 완료');
+    }catch(e){ toast('가져오기 실패: 올바른 백업 파일이 아닙니다'); } finally{ input.value=''; } };
+  r.readAsText(f);
+}
+function resetData(){ if(!confirm('모든 기록(완료·수시 업무·템플릿)을 초기화할까요? 되돌릴 수 없습니다.')) return;
+  state={done:{},steps:{},instances:[],customTpls:[],routine:{}}; save(); render(); toast('초기화했습니다'); }
+
+render();
+</script>
+</body>
+</html>

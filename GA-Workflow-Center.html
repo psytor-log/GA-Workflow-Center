@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>GA Workflow Center</title>
+<title>GA center</title>
 <style>
   :root{
     --bg:#f4f6fa; --card:#ffffff; --line:#e3e8f0; --text:#1f2937; --sub:#6b7280;
@@ -146,9 +146,10 @@
 
 <header>
   <div class="head-top">
-    <h1>GA Workflow Center</h1>
+    <h1>GA center</h1>
     <span class="tag">총무 운영 보조</span>
     <span class="spacer"></span>
+    <button onclick="openSettings()">⚙ 화면 설정</button>
     <button onclick="exportData()">데이터 내보내기</button>
     <button onclick="document.getElementById('import-file').click()">가져오기</button>
     <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(this)" />
@@ -476,9 +477,9 @@ let state = load();
 function load(){
   try{
     const raw = localStorage.getItem(LS_KEY) || localStorage.getItem(LS_KEY_OLD);
-    if(raw){ const s = JSON.parse(raw); return Object.assign({done:{}, steps:{}, instances:[], customTpls:[], routine:{}, recurOv:{}, tplOv:{}}, s); }
+    if(raw){ const s = JSON.parse(raw); return Object.assign({done:{}, steps:{}, instances:[], customTpls:[], routine:{}, recurOv:{}, tplOv:{}, settings:{}}, s); }
   }catch(e){ console.warn('상태 로드 실패', e); }
-  return {done:{}, steps:{}, instances:[], customTpls:[], routine:{}, recurOv:{}, tplOv:{}};
+  return {done:{}, steps:{}, instances:[], customTpls:[], routine:{}, recurOv:{}, tplOv:{}, settings:{}};
 }
 function save(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){ toast('저장 실패: 브라우저 저장 공간을 확인하세요'); } }
 function allTpls(){
@@ -1213,13 +1214,43 @@ function importData(input){
       const s=JSON.parse(r.result);
       if(!s||typeof s!=='object'||!('instances' in s)) throw new Error('형식 불일치');
       if(!confirm('현재 데이터를 가져온 파일로 교체할까요?')) return;
-      state=Object.assign({done:{},steps:{},instances:[],customTpls:[],routine:{},recurOv:{},tplOv:{}}, s); save(); render(); toast('가져오기 완료');
+      state=Object.assign({done:{},steps:{},instances:[],customTpls:[],routine:{},recurOv:{},tplOv:{},settings:{}}, s); save(); render(); toast('가져오기 완료');
     }catch(e){ toast('가져오기 실패: 올바른 백업 파일이 아닙니다'); } finally{ input.value=''; } };
   r.readAsText(f);
 }
 function resetData(){ if(!confirm('모든 기록(완료·수시 업무·템플릿)을 초기화할까요? 되돌릴 수 없습니다.')) return;
-  state={done:{},steps:{},instances:[],customTpls:[],routine:{},recurOv:{},tplOv:{}}; save(); render(); toast('초기화했습니다'); }
+  state={done:{},steps:{},instances:[],customTpls:[],routine:{},recurOv:{},tplOv:{},settings:{}}; save(); render(); toast('초기화했습니다'); }
 
+/* 화면 설정: 폰트 크기(줌)와 서체 — 변경 즉시 적용, localStorage에 저장 */
+const FONT_FAMILIES={
+ default:{label:'기본 (Segoe UI·맑은 고딕)', css:"'Segoe UI','Malgun Gothic','Apple SD Gothic Neo',sans-serif"},
+ malgun:{label:'맑은 고딕', css:"'Malgun Gothic',sans-serif"},
+ nanum:{label:'나눔고딕', css:"'NanumGothic','Nanum Gothic','Malgun Gothic',sans-serif"},
+ noto:{label:'노토 산스 KR', css:"'Noto Sans KR','Noto Sans CJK KR','Malgun Gothic',sans-serif"},
+ dotum:{label:'돋움', css:"'Dotum','Malgun Gothic',sans-serif"},
+ batang:{label:'바탕 (명조)', css:"'Batang','Malgun Gothic',serif"}
+};
+const FONT_SIZES=[['90','작게 (90%)'],['100','보통 (100%)'],['110','크게 (110%)'],['125','더 크게 (125%)'],['140','아주 크게 (140%)']];
+function applySettings(){
+  const s=state.settings||{};
+  document.body.style.zoom=parseInt(s.fontSize||'100',10)/100;
+  const f=FONT_FAMILIES[s.fontFamily||'default'];
+  document.body.style.fontFamily=f?f.css:FONT_FAMILIES.default.css;
+}
+function openSettings(){
+  const s=state.settings||{};
+  let h='<h3>화면 설정</h3><p class="muted">변경 즉시 적용되고 이 브라우저에 저장됩니다.</p><div class="form">'
+   +'<label>폰트 크기</label><select id="set-size">'+FONT_SIZES.map(o=>'<option value="'+o[0]+'"'+((s.fontSize||'100')===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select>'
+   +'<label>서체</label><select id="set-font">'+Object.keys(FONT_FAMILIES).map(k=>'<option value="'+k+'"'+((s.fontFamily||'default')===k?' selected':'')+'>'+FONT_FAMILIES[k].label+'</option>').join('')+'</select>'
+   +'<p class="muted" style="margin-top:10px">나눔고딕·노토 산스는 PC에 해당 글꼴이 설치되어 있을 때만 적용됩니다.</p>'
+   +'<div style="margin-top:14px"><button class="btn gray" id="set-reset">기본값으로</button></div></div>';
+  openModal(h);
+  const upd=()=>{ state.settings={fontSize:document.getElementById('set-size').value, fontFamily:document.getElementById('set-font').value}; save(); applySettings(); };
+  document.getElementById('set-size').onchange=upd;
+  document.getElementById('set-font').onchange=upd;
+  document.getElementById('set-reset').onclick=()=>{ state.settings={}; save(); applySettings(); openSettings(); };
+}
+applySettings();
 render();
 </script>
 </body>

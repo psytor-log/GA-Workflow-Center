@@ -6,4 +6,7 @@ login.html
 auth-ui.js
 users.json
 sessions.json
+memos.json
+test-*.json
+*.bak
 *.tmp

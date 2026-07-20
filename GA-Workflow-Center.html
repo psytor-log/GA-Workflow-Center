@@ -140,6 +140,25 @@
   .filters{display:flex; gap:6px; margin-bottom:10px;}
   .filters button{font-size:12px; border:1px solid var(--line); background:#fff; border-radius:14px; padding:4px 12px; cursor:pointer; color:var(--sub);}
   .filters button.on{background:var(--primary); border-color:var(--primary); color:#fff;}
+  /* 팀 메모판 */
+  .memo-input{display:flex; gap:7px; margin-bottom:10px;}
+  .memo-input input{flex:1; padding:8px 11px; border:1px solid var(--line); border-radius:8px; font-size:13px; font-family:inherit;}
+  .memo-input input:focus{outline:none; border-color:var(--primary);}
+  .memo-input button{background:#16a34a; color:#fff; border:none; border-radius:8px; padding:0 16px; font-weight:700; font-size:13px; cursor:pointer;}
+  .memo-input button:hover{background:#15803d;}
+  .memo-row{display:flex; gap:9px; padding:9px 0; border-bottom:1px solid #f0f2f7; align-items:flex-start;}
+  .memo-row:last-child{border-bottom:none;}
+  .memo-row.reply{margin-left:34px;}
+  .memo-avatar{width:28px; height:28px; border-radius:50%; flex:none; display:flex; align-items:center; justify-content:center; font-size:12.5px; font-weight:700; color:#fff;}
+  .memo-body{flex:1; min-width:0;}
+  .memo-head{display:flex; align-items:center; gap:7px;}
+  .memo-name{font-weight:700; font-size:12.5px;}
+  .memo-time{font-size:11px; color:var(--sub);}
+  .memo-del{border:none; background:none; color:var(--sub); cursor:pointer; font-size:12px; padding:0 3px; margin-left:auto;}
+  .memo-del:hover{color:var(--red);}
+  .memo-text{font-size:13px; margin-top:2px; white-space:pre-wrap; word-break:break-word;}
+  .memo-actions button{border:none; background:none; color:var(--sub); font-size:11.5px; cursor:pointer; padding:3px 4px 0 0;}
+  .memo-actions button:hover{color:var(--primary);}
 </style>
 </head>
 <body>
@@ -638,6 +657,10 @@ function renderDash(){
   if(!overdue.length) h+='<div class="empty">지연된 정기 업무가 없습니다 🎉</div>';
   for(const ev of overdue) h+=evRow(ev,true);
   h+='</div></div><div>';
+  // 팀 메모판 (내부 서버 연결 시에만 표시)
+  h+='<div class="card" id="memo-card" style="display:none"><h2>📌 팀 메모판</h2>'
+    +'<div class="memo-input"><input id="memo-in" placeholder="메모 남기고 Enter" maxlength="500" onkeydown="if(event.key===&quot;Enter&quot;)postMemo(null,&quot;memo-in&quot;)"/><button onclick="postMemo(null,&quot;memo-in&quot;)">남기기</button></div>'
+    +'<div id="memo-list"></div></div>';
   // 수시 업무
   h+='<div class="card"><h2>진행 중 수시 업무 <span class="cnt">'+open.length+'</span></h2>';
   if(!open.length) h+='<div class="empty">진행 중인 수시 업무가 없습니다. <br/>[수시 업무 접수] 탭에서 등록하세요.</div>';
@@ -654,6 +677,66 @@ function renderDash(){
   for(const ev of upcoming.slice(0,10)) h+=evRow(ev);
   h+='</div></div></div>';
   document.getElementById('v-dash').innerHTML=h;
+  renderMemos();
+  loadMemos();
+}
+/* 팀 메모판: 서버 공유 실시간 댓글 (입력 시간·작성자·삭제·답글) */
+let memoData=null;
+function avatarColor(name){ const cs=['#2f4bd8','#059669','#b45309','#dc2626','#7c3aed','#0891b2']; let h=0; for(const ch of String(name)) h=(h*31+ch.charCodeAt(0))>>>0; return cs[h%cs.length]; }
+function memoTime(ts){ return ts? ts.slice(5,16).replace('-','/') : ''; }
+async function loadMemos(){
+  try{
+    const r=await fetch('/api/memos');
+    if(!r.ok) throw 0;
+    memoData=await r.json();
+    renderMemos();
+  }catch(e){ /* 서버 없음(공개 프로토타입) — 메모판 숨김 유지 */ }
+}
+function renderMemos(){
+  const card=document.getElementById('memo-card');
+  if(!card||!memoData) return;
+  card.style.display='';
+  const list=document.getElementById('memo-list'); if(!list) return;
+  const ms=memoData.memos||[];
+  const tops=ms.filter(m=>!m.parent).sort((a,b)=>b.id-a.id);
+  const row=(m,reply)=>{
+    const canDel=(m.name===memoData.me)||memoData.admin;
+    return '<div class="memo-row'+(reply?' reply':'')+'"><span class="memo-avatar" style="background:'+avatarColor(m.name)+'">'+esc(String(m.name).charAt(0))+'</span>'
+      +'<div class="memo-body"><div class="memo-head"><span class="memo-name">'+esc(m.name)+'</span><span class="memo-time">'+esc(memoTime(m.ts))+'</span>'
+      +(canDel?'<button class="memo-del" onclick="delMemo('+m.id+')" title="삭제">✕</button>':'')+'</div>'
+      +'<div class="memo-text">'+esc(m.text)+'</div>'
+      +(reply?'':'<div class="memo-actions"><button onclick="toggleReply('+m.id+')">답글</button></div><div id="memo-reply-'+m.id+'"></div>')
+      +'</div></div>';
+  };
+  let h='';
+  for(const t of tops){
+    h+=row(t,false);
+    for(const r of ms.filter(m=>m.parent===t.id).sort((a,b)=>a.id-b.id)) h+=row(r,true);
+  }
+  list.innerHTML=h||'<div class="empty">첫 메모를 남겨보세요.</div>';
+}
+async function postMemo(parent, inputId){
+  const el=document.getElementById(inputId);
+  const text=((el&&el.value)||'').trim();
+  if(!text) return;
+  try{
+    const r=await fetch('/api/memos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text,parent:parent})});
+    if(r.ok){ if(el) el.value=''; loadMemos(); }
+    else toast('메모 등록에 실패했습니다');
+  }catch(e){ toast('서버에 연결할 수 없습니다'); }
+}
+function toggleReply(id){
+  const box=document.getElementById('memo-reply-'+id); if(!box) return;
+  if(box.innerHTML){ box.innerHTML=''; return; }
+  box.innerHTML='<div class="memo-input" style="margin:6px 0 0"><input id="memo-rin-'+id+'" placeholder="답글 남기고 Enter" maxlength="500" onkeydown="if(event.key===&quot;Enter&quot;)postMemo('+id+',&quot;memo-rin-'+id+'&quot;)"/><button onclick="postMemo('+id+',&quot;memo-rin-'+id+'&quot;)">등록</button></div>';
+  const el=document.getElementById('memo-rin-'+id); if(el&&el.focus) el.focus();
+}
+async function delMemo(id){
+  if(!confirm('이 메모를 삭제할까요? (답글도 함께 삭제됩니다)')) return;
+  try{
+    const r=await fetch('/api/memos/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id})});
+    if(r.ok) loadMemos(); else { const d=await r.json(); toast(d.error||'삭제에 실패했습니다'); }
+  }catch(e){ toast('서버에 연결할 수 없습니다'); }
 }
 function stat(n,l,color){ return '<div class="stat"><div class="n"'+(color?' style="color:'+color+'"':'')+'>'+n+'</div><div class="l">'+l+'</div></div>'; }
 function evRow(ev,late){
@@ -1268,6 +1351,7 @@ function openSettings(){
 }
 applySettings();
 render();
+setInterval(()=>{ if(curView==='dash') loadMemos(); }, 20000); // 메모판 20초 자동 새로고침
 </script>
 </body>
 </html>

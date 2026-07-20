@@ -159,6 +159,19 @@
   .memo-text{font-size:13px; margin-top:2px; white-space:pre-wrap; word-break:break-word;}
   .memo-actions button{border:none; background:none; color:var(--sub); font-size:11.5px; cursor:pointer; padding:3px 4px 0 0;}
   .memo-actions button:hover{color:var(--primary);}
+  /* 메모판 사이드바 */
+  #memo-side{position:fixed; top:0; right:0; height:100vh; width:340px; background:#fff; border-left:1px solid var(--line);
+    box-shadow:-6px 0 18px rgba(15,23,42,.07); z-index:8000; flex-direction:column;
+    transform:translateX(100%); transition:transform .25s ease;}
+  #memo-side.open{transform:none;}
+  #memo-side-toggle{position:absolute; left:-38px; top:120px; width:38px; padding:14px 0; border:1px solid var(--line);
+    border-right:none; background:#fff; border-radius:10px 0 0 10px; cursor:pointer; color:var(--primary);
+    font-size:12.5px; font-weight:700; writing-mode:vertical-rl; letter-spacing:2px; box-shadow:-4px 0 10px rgba(15,23,42,.06);}
+  #memo-side-toggle:hover{background:#f2f6ff;}
+  .memo-side-head{padding:16px 16px 10px;}
+  .memo-side-head h2{font-size:15px; margin:0;}
+  #memo-side .memo-input{padding:0 16px; margin-bottom:8px;}
+  .memo-side-list{flex:1; overflow-y:auto; padding:0 16px 90px;}
 </style>
 </head>
 <body>
@@ -191,6 +204,14 @@
   <div id="v-flex" style="display:none"></div>
   <div id="v-tpl" style="display:none"></div>
 </main>
+
+<!-- 실시간 메모판 사이드바 (내부 서버 연결 시에만 표시) -->
+<aside id="memo-side" style="display:none">
+  <button id="memo-side-toggle" onclick="toggleMemoSide()" title="실시간 메모판 열기/닫기">📌 메모판</button>
+  <div class="memo-side-head"><h2>📌 실시간 메모판</h2></div>
+  <div class="memo-input"><input id="memo-in" placeholder="메모 남기고 Enter" maxlength="500" onkeydown="if(event.key===&quot;Enter&quot;)postMemo(null,&quot;memo-in&quot;)"/><button onclick="postMemo(null,&quot;memo-in&quot;)">남기기</button></div>
+  <div id="memo-list" class="memo-side-list"></div>
+</aside>
 
 <div class="overlay" id="overlay" onclick="if(event.target===this)closeModal()">
   <div class="modal" id="modal"></div>
@@ -657,10 +678,6 @@ function renderDash(){
   if(!overdue.length) h+='<div class="empty">지연된 정기 업무가 없습니다 🎉</div>';
   for(const ev of overdue) h+=evRow(ev,true);
   h+='</div></div><div>';
-  // 팀 메모판 (내부 서버 연결 시에만 표시)
-  h+='<div class="card" id="memo-card" style="display:none"><h2>📌 팀 메모판</h2>'
-    +'<div class="memo-input"><input id="memo-in" placeholder="메모 남기고 Enter" maxlength="500" onkeydown="if(event.key===&quot;Enter&quot;)postMemo(null,&quot;memo-in&quot;)"/><button onclick="postMemo(null,&quot;memo-in&quot;)">남기기</button></div>'
-    +'<div id="memo-list"></div></div>';
   // 수시 업무
   h+='<div class="card"><h2>진행 중 수시 업무 <span class="cnt">'+open.length+'</span></h2>';
   if(!open.length) h+='<div class="empty">진행 중인 수시 업무가 없습니다. <br/>[수시 업무 접수] 탭에서 등록하세요.</div>';
@@ -677,8 +694,6 @@ function renderDash(){
   for(const ev of upcoming.slice(0,10)) h+=evRow(ev);
   h+='</div></div></div>';
   document.getElementById('v-dash').innerHTML=h;
-  renderMemos();
-  loadMemos();
 }
 /* 팀 메모판: 서버 공유 실시간 댓글 (입력 시간·작성자·삭제·답글) */
 let memoData=null;
@@ -693,9 +708,10 @@ async function loadMemos(){
   }catch(e){ /* 서버 없음(공개 프로토타입) — 메모판 숨김 유지 */ }
 }
 function renderMemos(){
-  const card=document.getElementById('memo-card');
-  if(!card||!memoData) return;
-  card.style.display='';
+  const side=document.getElementById('memo-side');
+  if(!side||!memoData) return;
+  side.style.display='flex';
+  if(!side.dataset.init){ side.dataset.init='1'; try{ if(localStorage.getItem('gaMemoSide')!=='closed') side.classList.add('open'); }catch(e){} }
   const list=document.getElementById('memo-list'); if(!list) return;
   const ms=memoData.memos||[];
   const tops=ms.filter(m=>!m.parent).sort((a,b)=>b.id-a.id);
@@ -737,6 +753,11 @@ async function delMemo(id){
     const r=await fetch('/api/memos/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id})});
     if(r.ok) loadMemos(); else { const d=await r.json(); toast(d.error||'삭제에 실패했습니다'); }
   }catch(e){ toast('서버에 연결할 수 없습니다'); }
+}
+function toggleMemoSide(){
+  const side=document.getElementById('memo-side'); if(!side) return;
+  const open=side.classList.toggle('open');
+  try{ localStorage.setItem('gaMemoSide', open?'open':'closed'); }catch(e){}
 }
 function stat(n,l,color){ return '<div class="stat"><div class="n"'+(color?' style="color:'+color+'"':'')+'>'+n+'</div><div class="l">'+l+'</div></div>'; }
 function evRow(ev,late){
@@ -1351,7 +1372,8 @@ function openSettings(){
 }
 applySettings();
 render();
-setInterval(()=>{ if(curView==='dash') loadMemos(); }, 20000); // 메모판 20초 자동 새로고침
+loadMemos();
+setInterval(()=>{ if(memoData) loadMemos(); }, 30000); // 메모판 30초 자동 새로고침
 </script>
 </body>
 </html>

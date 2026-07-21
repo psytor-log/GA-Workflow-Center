@@ -1054,10 +1054,113 @@ function genSignature(id){ const i=state.instances.find(x=>x.id===id); const a=i
 
 /* ============================================================ flex 초안 생성기 */
 let flexPreset=null;
-function gotoFlex(type){ flexPreset=type; switchView('flex'); }
+let flexMode='expense'; // 'expense' 지출결의서 | 'proposal' 품의서
+let proposalPreset=null;
+function gotoFlex(type){ flexPreset=type; flexMode='expense'; switchView('flex'); }
+function gotoProposal(){ const d=document.getElementById('fx-detail'); proposalPreset={purpose:(d&&d.value?d.value.trim():'')}; flexMode='proposal'; render(); }
 function renderFlex(){
+  const tabs='<div class="filters" style="margin-bottom:12px">'
+    +'<button class="'+(flexMode==='expense'?'on':'')+'" onclick="flexMode=&quot;expense&quot;;render()">지출결의서</button>'
+    +'<button class="'+(flexMode==='proposal'?'on':'')+'" onclick="flexMode=&quot;proposal&quot;;render()">품의서</button></div>';
+  if(flexMode==='proposal'){ renderProposal(tabs); return; }
+  renderFlexExpense(tabs);
+}
+/* 품의서 초안 생성기 — 단순 구매형(터치스크린 샘플)·업체 비교형(에어컨 청소 샘플) 양식 */
+function renderProposal(tabs){
+  const pp=proposalPreset||{}; proposalPreset=null;
+  let h=tabs+'<div class="grid2"><div class="card"><h2>품의서 입력</h2><div class="form">'
+   +'<label>품의 유형</label><select id="pr-kind" onchange="document.getElementById(&quot;pr-compare-wrap&quot;).style.display=this.value===&quot;compare&quot;?&quot;&quot;:&quot;none&quot;;document.getElementById(&quot;pr-vendor-wrap&quot;).style.display=this.value===&quot;compare&quot;?&quot;none&quot;:&quot;&quot;">'
+   +'<option value="simple">단순 구매형 — 업체 1곳</option><option value="compare">업체 비교형 — 견적 2~3곳 비교</option></select>'
+   +'<label>품의 주제(업무명)</label><input type="text" id="pr-topic" placeholder="예: 에어컨 필터 청소, 전시회용 터치스크린 구매"/>'
+   +'<label>목적</label><textarea id="pr-purpose" placeholder="왜 필요한지 1~3문장 (민원·요청 배경 등)">'+esc(pp.purpose||'')+'</textarea>'
+   +'<label>배경·내용 <span class="opt">(한 줄에 하나 — 목록으로 정리됨)</span></label><textarea id="pr-bg" placeholder="일본 전시회 시연용으로 활용&#10;현지 대여는 비용 측면에서 비효율&#10;국내외 전시회에서 재활용 가능"></textarea>'
+   +'<label>구매 품목 <span class="opt">(한 줄에 하나: 품명 | 수량 | 단가. 비교형은 선택)</span></label><textarea id="pr-items" placeholder="터치스크린 | 1 | 199000&#10;노트북 가방 | 1 | 47700"></textarea>'
+   +'<div id="pr-vendor-wrap"><label>구매/거래처</label><input type="text" id="pr-vendor" placeholder="예: 쿠팡"/></div>'
+   +'<div id="pr-compare-wrap" style="display:none">'
+   +'<label>업체 비교 <span class="opt">(한 줄에 하나: 업체명 | 총금액 | 특징)</span></label><textarea id="pr-comp" placeholder="해피클리닝 | 3245000 | 가격·안정성 밸런스, 전체 분해 세척&#10;스카이케어 | 2800000 | 가격 저렴, 표준 세척&#10;LG 하이엠솔루텍 | 3600000 | 제조사 계열, 고품질"></textarea>'
+   +'<label>선정 업체</label><input type="text" id="pr-choice" placeholder="예: 해피클리닝"/>'
+   +'<label>선정 사유(기대효과)</label><textarea id="pr-reason" placeholder="비용과 리스크를 균형 있게 고려했을 때 가장 적절한 업체라고 판단됩니다."></textarea></div>'
+   +'<label>일정</label><input type="text" id="pr-schedule" value="품의 승인 후 즉시 진행"/>'
+   +'<label>사용자/참석자 <span class="opt">(선택)</span></label><input type="text" id="pr-users"/>'
+   +'<label>결제 유형</label><select id="pr-pay"><option>총무 법인카드(ISP 결제)</option><option>세금계산서 발행(계좌이체)</option><option>과제카드</option><option>기타</option></select>'
+   +'<label>결제 희망일 <span class="opt">(선택)</span></label><input type="date" id="pr-payday"/>'
+   +'<div style="margin-top:14px"><button class="btn" onclick="genProposal()">품의서 초안 생성</button></div>'
+   +'</div></div>'
+   +'<div class="card"><h2>flex 품의서 초안</h2><div id="pr-out"><div class="empty">왼쪽 입력 후 [초안 생성]을 누르세요.<br/>목적/배경/비교 검토/구매안/기대효과 양식으로 생성됩니다.</div></div></div></div>';
+  document.getElementById('v-flex').innerHTML=h;
+}
+function parseLines3(id){
+  return document.getElementById(id).value.split('\n').map(s=>s.trim()).filter(Boolean)
+    .map(ln=>ln.split('|').map(x=>x.trim()));
+}
+function won(n){ return n.toLocaleString('ko-KR')+'원'; }
+function genProposal(){
+  const g=id=>document.getElementById(id);
+  const kind=g('pr-kind').value;
+  const topic=g('pr-topic').value.trim();
+  if(!topic){ toast('품의 주제를 입력하세요'); return; }
+  const purpose=g('pr-purpose').value.trim()||'(목적 입력 필요)';
+  const bg=g('pr-bg').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  const items=parseLines3('pr-items').map(p=>({name:p[0], qty:parseInt(p[1]||'1',10)||1, price:parseInt(String(p[2]||'0').replace(/[^0-9]/g,''),10)||0}));
+  const total=items.reduce((s,i)=>s+i.qty*i.price,0);
+  const pay=g('pr-pay').value;
+  const isTax=pay.indexOf('세금계산서')>=0;
+  const payday=g('pr-payday').value;
+  const schedule=g('pr-schedule').value.trim()||'품의 승인 후 즉시 진행';
+  const users=g('pr-users').value.trim();
+  const payMethod=isTax?'작업 완료 후 지출결의서 작성 (세금계산서 발행 및 입금)':'품의 승인 후 '+pay+' 진행';
+  const title='[총무] '+topic+' 품의';
+  const L=[title,''];
+  L.push('1. 목적'); L.push(purpose); L.push('');
+  if(kind==='compare'){
+    const comp=parseLines3('pr-comp').map(p=>({name:p[0], amt:parseInt(String(p[1]||'0').replace(/[^0-9]/g,''),10)||0, note:p[2]||''}));
+    if(comp.length<2){ toast('비교 업체를 2곳 이상 입력하세요'); return; }
+    const choice=g('pr-choice').value.trim();
+    if(!choice){ toast('선정 업체를 입력하세요'); return; }
+    const chosen=comp.find(c=>c.name===choice)||comp.find(c=>c.name.indexOf(choice)>=0||choice.indexOf(c.name)>=0);
+    L.push('2. 배경');
+    (bg.length?bg:['(배경 입력 필요)']).forEach(b=>L.push('- '+b)); L.push('');
+    L.push('3. 비교 검토 (VAT 포함)');
+    comp.forEach(c=>L.push('- '+c.name+': '+won(c.amt)+(c.note?' — '+c.note:''))); L.push('');
+    if(items.length){ L.push('   [세부 내역]'); items.forEach(i=>L.push('   · '+i.name+' × '+i.qty+' × '+won(i.price)+' = '+won(i.qty*i.price))); L.push(''); }
+    L.push('4. 구매안');
+    L.push('(1) 구매처: '+choice);
+    L.push('(2) 일정: '+schedule);
+    L.push('(3) 비용: '+won(chosen?chosen.amt:total));
+    L.push('(4) 결제 방법: '+payMethod);
+    if(payday) L.push('(5) 결제 희망일: '+payday);
+    L.push('');
+    L.push('5. 기대효과');
+    L.push(g('pr-reason').value.trim()||'(선정 사유 입력 필요)');
+  } else {
+    if(!items.length){ toast('구매 품목을 입력하세요 (품명 | 수량 | 단가)'); return; }
+    L.push('2. 내용');
+    (bg.length?bg:['(내용 입력 필요)']).forEach(b=>L.push('- '+b)); L.push('');
+    L.push('3. 계획');
+    L.push('- 구매/거래처: '+(g('pr-vendor').value.trim()||'(구매처 입력 필요)'));
+    L.push('- 일정: '+schedule);
+    if(users) L.push('- 사용자/참석자: '+users);
+    L.push('');
+    L.push('4. 예산/비용');
+    L.push('- 내역 (품명 × 수량 × 단가):');
+    items.forEach(i=>L.push('   · '+i.name+' × '+i.qty+' × '+won(i.price)+' = '+won(i.qty*i.price)));
+    L.push('- 총액: '+won(total));
+    L.push('- 세금계산서: '+(isTax?'발행 예정 (작업/납품 완료 후)':'해당 없음 (카드 결제)'));
+    L.push('- 결제 유형: '+pay);
+    L.push('- 결제 방법: '+payMethod);
+    if(payday) L.push('- 결제 희망일: '+payday);
+  }
+  const full=L.join('\n');
+  let h='<div class="field-line"><div class="k">제목</div><div class="v">'+esc(title)+'</div><button class="copy-btn" onclick="copyText(this.previousElementSibling.textContent,&quot;제목 복사됨&quot;)">복사</button></div>';
+  if(total) h+='<div class="field-line"><div class="k">품목 합계</div><div class="v">'+esc(won(total))+'</div></div>';
+  h+='<div class="info">초안은 참고용입니다. 상신 전 금액·업체 정보를 반드시 확인하세요.</div>';
+  h+='<div style="margin-top:12px"><button class="btn sm" onclick="copyText(document.getElementById(&quot;pr-full&quot;).textContent,&quot;품의서 전체 복사됨&quot;)">전체 복사</button></div>';
+  h+='<pre class="flex-out" id="pr-full" style="margin-top:10px">'+esc(full)+'</pre>';
+  document.getElementById('pr-out').innerHTML=h;
+}
+function renderFlexExpense(tabs){
   const opts=Object.keys(FLEX_TYPES).map(k=>'<option value="'+k+'" '+(flexPreset===k?'selected':'')+'>'+esc(FLEX_TYPES[k].label)+'</option>').join('');
-  let h='<div class="grid2"><div class="card"><h2>입력</h2><div class="form">'
+  let h=tabs+'<div class="grid2"><div class="card"><h2>입력</h2><div class="form">'
     +'<label>업무 유형</label><select id="fx-type" onchange="flexHint()">'+opts+'</select>'
     +'<div id="fx-hint"></div>'
     +'<label>금액(원)</label><input type="number" id="fx-amount" placeholder="예: 132000"/>'
@@ -1127,6 +1230,7 @@ function genFlex(){
     +(payday?line('지출일',payday):'')+line('비고',memo);
   h+='<div class="field-line"><div class="k">첨부 체크</div><div class="v">'+attach.map(esc).join('<br/>')+'</div></div>';
   h+='<div class="'+(po.startsWith('불필요')?'info':'warn')+'">품의: '+esc(po)+'</div>';
+  if(!po.startsWith('불필요')) h+='<div style="margin-top:8px"><button class="btn ghost sm" onclick="gotoProposal()">→ 품의서 초안 만들기 (구매 내용 이어받기)</button></div>';
   h+='<div class="info">확인 필요: '+esc(checks.join(', '))+'</div>';
   h+='<div style="margin-top:12px;display:flex;gap:8px"><button class="btn sm" onclick="copyText(document.getElementById(\'fx-full\').textContent,\'전체 초안 복사됨\')">전체 복사</button></div>';
   h+='<pre class="flex-out" id="fx-full" style="margin-top:10px">'+esc(full)+'</pre>';

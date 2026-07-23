@@ -109,7 +109,7 @@
   /* 모달 */
   .overlay{position:fixed; inset:0; background:rgba(15,23,42,.45); display:none; align-items:flex-start; justify-content:center; padding:40px 14px; z-index:50; overflow-y:auto;}
   .overlay.on{display:flex;}
-  .modal{background:#fff; border-radius:14px; max-width:640px; width:100%; padding:20px; position:relative;}
+  .modal{background:#fff; border-radius:14px; max-width:760px; width:100%; padding:20px; position:relative;}
   .modal h3{font-size:16px; margin-bottom:4px; padding-right:30px;}
   .modal .x{position:absolute; top:12px; right:14px; border:none; background:none; font-size:20px; cursor:pointer; color:var(--sub);}
   .modal .sec{margin-top:13px;}
@@ -123,8 +123,8 @@
   .step.s-exception .st-btn{background:var(--red-bg); color:var(--red); border-color:transparent;}
   .step .txt{flex:1; font-size:13px; padding-top:2px;}
   .step.s-done .txt{color:var(--sub); text-decoration:line-through;}
-  .step input.memo{width:150px; flex:none; font-size:11.5px; border:1px solid transparent; border-radius:6px; padding:3px 6px; background:#f7f8fb;}
-  .step input.memo:focus{border-color:var(--line); outline:none; background:#fff;}
+  .step textarea.memo{width:300px; flex:none; min-height:54px; font-size:11.5px; border:1px solid transparent; border-radius:6px; padding:4px 7px; background:#f7f8fb; font-family:inherit; resize:vertical; line-height:1.45;}
+  .step textarea.memo:focus{border-color:var(--line); outline:none; background:#fff;}
   /* 템플릿 */
   details.tpl{border:1px solid var(--line); border-radius:10px; margin-bottom:8px; background:#fff;}
   details.tpl summary{padding:11px 14px; cursor:pointer; display:flex; align-items:center; gap:9px; list-style:none;}
@@ -833,7 +833,7 @@ function openEvent(date,tplId,dd,label,snap){
 function markDone(key,on){ if(on) state.done[key]={at:new Date().toISOString()}; else delete state.done[key]; save(); closeModal(); render(); }
 
 /* 스텝(체크리스트) 렌더 — scope: 'ev:date|tpl' 또는 'inst:id' */
-const ST_LABEL={todo:'진행 전', done:'완료', hold:'보류', exception:'예외'};
+const ST_LABEL={todo:'진행 전', done:'완료', hold:'보류', exception:'제외'};
 const ST_NEXT={todo:'done', done:'hold', hold:'exception', exception:'todo'};
 function stepState(scope,idx){
   if(scope.startsWith('inst:')){ const i=state.instances.find(x=>x.id===scope.slice(5)); return i? i.checklist[idx] : {status:'todo',memo:''}; }
@@ -845,15 +845,20 @@ function renderSteps(scope, texts){
     const st=stepState(scope,idx);
     h+='<div class="step s-'+st.status+'"><button class="st-btn" onclick="cycleStep(\''+scope.replace(/'/g,'&#39;')+'\','+idx+')">'+ST_LABEL[st.status]+'</button>'
       +'<div class="txt">'+esc(txt)+'</div>'
-      +'<input class="memo" placeholder="메모" value="'+esc(st.memo||'')+'" onchange="stepMemo(\''+scope.replace(/'/g,'&#39;')+'\','+idx+',this.value)"/></div>';
+      +'<textarea class="memo" placeholder="메모 (Enter로 줄바꿈)" onchange="stepMemo(\''+scope.replace(/'/g,'&#39;')+'\','+idx+',this.value)">'+esc(st.memo||'')+'</textarea></div>';
   });
   return h||'<div class="empty">체크리스트가 없습니다.</div>';
 }
 function cycleStep(scope,idx){
   if(scope.startsWith('inst:')){
     const i=state.instances.find(x=>x.id===scope.slice(5)); if(!i) return;
+    const wasTodo=i.checklist[idx].status==='todo';
     i.checklist[idx].status=ST_NEXT[i.checklist[idx].status];
-    save(); openInstance(i.id); renderBackground(); return;
+    save(); openInstance(i.id); renderBackground();
+    if(wasTodo && i.status==='open' && i.checklist.every(s=>s.status!=='todo')){
+      if(confirm('모든 체크리스트가 처리되었습니다. 업무를 완료 처리할까요?')) finishInstance(i.id);
+    }
+    return;
   }
   const bag=state.steps[scope]=state.steps[scope]||{};
   const st=bag[idx]=bag[idx]||{status:'todo',memo:''};
@@ -969,7 +974,7 @@ function openInstance(id){
     for(const k of aKeys){ const f=(t.intake||[]).find(x=>x.k===k); h+='<div class="field-line"><div class="k">'+esc(f?f.label:k)+'</div><div class="v">'+esc(i.answers[k])+'</div></div>'; }
     h+='</div>';
   }
-  h+='<div class="sec"><h4>체크리스트 (버튼을 눌러 진행 전→완료→보류→예외 순환)</h4>'+renderSteps('inst:'+i.id, i.checklist.map(s=>s.text))+'</div>';
+  h+='<div class="sec"><h4>체크리스트 (버튼을 눌러 진행 전→완료→보류→제외 순환)</h4>'+renderSteps('inst:'+i.id, i.checklist.map(s=>s.text))+'</div>';
   // 생성기
   if(t.gen==='namecard') h+='<div class="sec"><button class="btn ghost sm" onclick="copyText(genNamecard(\''+i.id+'\'),\'발주 정보를 복사했습니다\')">명함 발주 정보 복사</button></div>';
   if(t.gen==='signature') h+='<div class="sec"><button class="btn ghost sm" onclick="copyText(genSignature(\''+i.id+'\'),\'서명 HTML을 복사했습니다\')">이메일 서명 HTML 복사</button> <span class="muted">회사 표준 로고·링크는 붙여넣은 뒤 확인하세요.</span></div>';
@@ -978,7 +983,7 @@ function openInstance(id){
     +'<button class="btn ghost sm" onclick="openInstanceEditor(&quot;'+i.id+'&quot;)">접수 내용 수정</button>'
     +'<button class="btn ghost sm" onclick="openChecklistEditor(&quot;'+i.id+'&quot;)">체크리스트 수정</button></div>';
   h+='<div class="sec" style="display:flex;gap:8px">'
-    +(i.status==='open'?'<button class="btn" onclick="finishInstance(\''+i.id+'\')">업무 완료 처리</button>':'<button class="btn gray" onclick="reopenInstance(\''+i.id+'\')">다시 열기</button>')
+    +(i.status==='open'?'<button class="btn" onclick="confirmInstance(\''+i.id+'\')">확인</button>':'<button class="btn gray" onclick="reopenInstance(\''+i.id+'\')">다시 열기</button>')
     +'<button class="btn gray" onclick="deleteInstance(\''+i.id+'\')">삭제</button></div>';
   openModal(h);
 }
@@ -1042,8 +1047,16 @@ function saveChecklistEdit(id){
 }
 function finishInstance(id){ const i=state.instances.find(x=>x.id===id); if(!i)return;
   const undone=i.checklist.filter(s=>s.status==='todo').length;
-  if(undone && !confirm('진행 전 단계가 '+undone+'개 남아 있습니다. 완료 처리할까요?')) return;
+  if(undone){ toast('진행 전 단계가 '+undone+'개 남아 있어 완료할 수 없습니다 (업무 누락 방지)'); return; }
   i.status='done'; i.doneAt=new Date().toISOString(); save(); closeModal(); render(); }
+function confirmInstance(id){
+  const i=state.instances.find(x=>x.id===id); if(!i){ closeModal(); return; }
+  const undone=i.checklist.filter(s=>s.status==='todo').length;
+  if(i.status==='open' && !undone){
+    if(confirm('모든 체크리스트가 처리되었습니다. 업무를 완료 처리할까요?')){ finishInstance(id); return; }
+  }
+  closeModal();
+}
 function reopenInstance(id){ const i=state.instances.find(x=>x.id===id); if(i){ i.status='open'; save(); closeModal(); render(); } }
 function deleteInstance(id){ if(!confirm('이 업무 기록을 삭제할까요? (이력이 사라집니다)')) return; state.instances=state.instances.filter(x=>x.id!==id); save(); closeModal(); render(); }
 

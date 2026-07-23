@@ -74,6 +74,7 @@
   .ev.yellow{background:var(--yellow-bg); color:var(--yellow);} .ev.red{background:var(--red-bg); color:var(--red);}
   .ev.done{opacity:.45; text-decoration:line-through;}
   .ev.dd{font-weight:400; opacity:.85; font-size:11.5px;}
+  .ev.inst{background:#fff; border:1.5px dashed currentColor;}
   /* 접수함 */
   .intake-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:10px;}
   .intake-card{border:1px solid var(--line); border-radius:11px; padding:13px 14px; cursor:pointer; background:#fff; text-align:left;}
@@ -188,7 +189,7 @@
   </div>
   <nav id="nav">
     <button data-v="dash" class="on">오늘의 GA</button>
-    <button data-v="cal">정기 업무 캘린더</button>
+    <button data-v="cal">업무 캘린더</button>
     <button data-v="intake">수시 업무 접수</button>
     <button data-v="tasks">진행 중 업무</button>
     <button data-v="flex">flex 초안 생성기</button>
@@ -579,6 +580,24 @@ function eventsForMonth(y,m,withDday){
   return evs;
 }
 function evKey(ev){ return ev.date+'|'+ev.tplId+(ev.dd?('|dd|'+ev.label):''); }
+/* 수시 업무(접수 건)의 날짜 정보를 캘린더 이벤트로 변환 — 처리일(answers.date)·반납 예정일(due), 둘 다 없으면 접수일 */
+function instEventsForMonth(y,m){
+  const out=[];
+  const isDate=s=>!!s&&/^\d{4}-\d{2}-\d{2}$/.test(s);
+  const push=(ds,i,label,isDue)=>{
+    const d=parseD(ds);
+    if(d.getFullYear()!==y||d.getMonth()!==m) return;
+    const t=tplById(i.tplId)||{};
+    out.push({date:ds, instId:i.id, label:label, color:t.color||'gray', inst:true, done:i.status==='done', due:!!isDue});
+  };
+  for(const i of (state.instances||[])){
+    let has=false;
+    if(i.answers&&isDate(i.answers.date)){ push(i.answers.date,i,i.title,false); has=true; }
+    if(isDate(i.due)){ push(i.due,i,'반납 예정 · '+i.title,true); has=true; }
+    if(!has) push(i.createdAt.slice(0,10),i,'접수 · '+i.title,false);
+  }
+  return out;
+}
 
 /* ============================================================ 공통 UI */
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -647,6 +666,9 @@ function renderDash(){
   const t=today(); const ts=fmt(t);
   const monthEvs=eventsForMonth(t.getFullYear(), t.getMonth(), true);
   const todays=monthEvs.filter(e=>e.date===ts);
+  const instEvs=instEventsForMonth(t.getFullYear(), t.getMonth());
+  const instToday=instEvs.filter(e=>e.date===ts && !e.done);
+  const instUp=instEvs.filter(e=>{ const d=parseD(e.date); return d>t && (d-t)<=7*86400000 && !e.done; });
   const upcoming=monthEvs.filter(e=>{ const d=parseD(e.date); return d>t && (d-t)<=7*86400000 && !e.dd; });
   const overdue=overdueEvents();
   const mains=monthEvs.filter(e=>!e.dd);
@@ -670,8 +692,9 @@ function renderDash(){
   // 오늘 할 일
   h+='<div class="card"><h2>오늘 할 일 <span class="cnt">'+kdate(ts)+'</span></h2>';
   h+='<div class="row '+(routineDone?'done':'')+'" onclick="toggleRoutine(\''+ts+'\')"><span class="dot green"></span><div class="grow"><div class="t">매일 루틴 · 신문 배치(9시 전)</div><div class="s">1층 201/202/203호 우편함 → 연구소·2층 사업부 배치</div></div><span class="chip '+(routineDone?'green':'gray')+'">'+(routineDone?'완료':'미완료')+'</span></div>';
-  if(!todays.length) h+='<div class="empty">오늘 예정된 정기 업무가 없습니다.</div>';
+  if(!todays.length && !instToday.length) h+='<div class="empty">오늘 예정된 업무가 없습니다.</div>';
   for(const ev of todays) h+=evRow(ev);
+  for(const ie of instToday) h+='<div class="row" onclick="openInstance(\''+ie.instId+'\')"><span class="dot '+ie.color+'"></span><div class="grow"><div class="t">'+esc(ie.label)+'</div><div class="s">수시 업무 일정</div></div><span class="chip yellow">수시</span></div>';
   h+='</div>';
   // 지연
   h+='<div class="card"><h2>지연·이월 업무 <span class="cnt">'+overdue.length+'</span></h2>';
@@ -690,8 +713,9 @@ function renderDash(){
   }
   // 다가오는 일정
   h+='<div class="card"><h2>7일 내 예정 <span class="cnt">'+upcoming.length+'</span></h2>';
-  if(!upcoming.length) h+='<div class="empty">7일 내 예정된 정기 업무가 없습니다.</div>';
+  if(!upcoming.length && !instUp.length) h+='<div class="empty">7일 내 예정된 업무가 없습니다.</div>';
   for(const ev of upcoming.slice(0,10)) h+=evRow(ev);
+  for(const ie of instUp.slice(0,10)) h+='<div class="row" onclick="openInstance(\''+ie.instId+'\')"><span class="dot '+ie.color+'"></span><div class="grow"><div class="t">'+esc(ie.label)+'</div><div class="s">'+kdate(ie.date)+' · 수시 업무 일정</div></div><span class="chip yellow">수시</span></div>';
   h+='</div></div></div>';
   document.getElementById('v-dash').innerHTML=h;
 }
@@ -782,12 +806,19 @@ function renderCal(){
   const evs=eventsForMonth(calY,calM,showDday);
   const byDate={};
   for(const e of evs){ (byDate[e.date]=byDate[e.date]||[]).push(e); }
+  const ievs=instEventsForMonth(calY,calM);
+  for(const e of ievs){ (byDate[e.date]=byDate[e.date]||[]).push(e); }
   const first=new Date(calY,calM,1); const startWd=first.getDay(); const days=new Date(calY,calM+1,0).getDate();
   const t=today();
   let h='<div class="cal-head"><button onclick="moveCal(-1)">◀</button><h2>'+calY+'년 '+(calM+1)+'월</h2><button onclick="moveCal(1)">▶</button>'
     +'<button onclick="calToday()" style="font-size:12px">오늘</button>'
     +'<label><input type="checkbox" '+(showDday?'checked':'')+' onchange="showDday=this.checked;render()"/> D-day 단계 표시</label></div>';
-  h+='<div class="legend"><span><span class="dot blue"></span>결제·지출결의</span><span><span class="dot green"></span>점검·확인</span><span><span class="dot yellow"></span>업체 연락·예약</span><span><span class="dot red"></span>마감 경과(미완료)</span></div>';
+  const calMains=evs.filter(e=>!e.dd);
+  const calDone=calMains.filter(e=>state.done[evKey(e)]).length;
+  const instDone=ievs.filter(e=>e.done).length;
+  h+='<div class="legend"><span><span class="dot blue"></span>결제·지출결의</span><span><span class="dot green"></span>점검·확인</span><span><span class="dot yellow"></span>업체 연락·예약</span><span><span class="dot red"></span>마감 경과(미완료)</span>'
+    +'<span style="border:1.5px dashed var(--sub); border-radius:5px; padding:0 6px;">점선 = 수시 업무</span>'
+    +'<span style="margin-left:auto; font-weight:600;">이번 달 — 정기 '+calMains.length+'건(완료 '+calDone+') · 수시 '+ievs.length+'건(완료 '+instDone+')</span></div>';
   h+='<table class="cal"><tr><th class="sun">일</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th>토</th></tr><tr>';
   for(let i=0;i<startWd;i++) h+='<td class="dim"></td>';
   for(let d=1; d<=days; d++){
@@ -795,6 +826,11 @@ function renderCal(){
     if(dt.getDay()===0 && d>1) h+='</tr><tr>';
     h+='<td class="'+(ds===fmt(t)?'today':'')+'"><div class="dnum">'+d+'</div>';
     for(const ev of (byDate[ds]||[])){
+      if(ev.inst){
+        const ilate=ev.due && !ev.done && parseD(ev.date)<t;
+        h+='<button class="ev inst '+(ilate?'red':ev.color)+(ev.done?' done':'')+'" onclick="openInstance(\''+ev.instId+'\')" title="'+esc(ev.label)+'">'+esc(ev.label)+'</button>';
+        continue;
+      }
       const done=!!state.done[evKey(ev)];
       const late=parseD(ev.date)<t && !done && !ev.dd;
       h+='<button class="ev '+(late?'red':ev.color)+(done?' done':'')+(ev.dd?' dd':'')+'" onclick="openEvent(\''+ev.date+'\',\''+ev.tplId+'\','+ev.dd+',\''+esc(ev.label).replace(/'/g,'&#39;')+'\')" title="'+esc(ev.label)+'">'+(ev.dd?'▸ ':'')+esc(ev.label)+'</button>';
@@ -803,7 +839,7 @@ function renderCal(){
     if(d===days){ const rem=6-dt.getDay(); for(let i=0;i<rem;i++) h+='<td class="dim"></td>'; }
   }
   h+='</tr></table>';
-  h+='<p class="muted" style="margin-top:8px">정기 업무는 반복 규칙으로 자동 생성됩니다. 일정을 누르면 체크리스트·완료 처리가 열립니다.</p>';
+  h+='<p class="muted" style="margin-top:8px">정기 업무는 반복 규칙으로 자동 생성되고, 수시 업무는 접수한 날짜 정보(처리일·반납 예정일, 없으면 접수일)에 점선으로 표시됩니다. 일정을 누르면 체크리스트·완료 처리가 열립니다.</p>';
   document.getElementById('v-cal').innerHTML=h;
 }
 function moveCal(n){ calM+=n; if(calM<0){calM=11;calY--;} if(calM>11){calM=0;calY++;} render(); }

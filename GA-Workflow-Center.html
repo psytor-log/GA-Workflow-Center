@@ -861,10 +861,25 @@ function openEvent(date,tplId,dd,label,snap){
   }
   h+='<div class="sec" style="display:flex;gap:8px;align-items:center">'
     +(done?'<button class="btn gray" onclick="markDone(\''+key.replace(/'/g,'&#39;')+'\',false)">완료 취소</button><span class="chip green">완료 · '+esc((done.at||'').slice(0,10))+'</span>'
-          :'<button class="btn" id="btn-done" onclick="markDone(\''+key.replace(/'/g,'&#39;')+'\',true)">이 업무 완료 처리</button>')
+          :(dd?'<button class="btn" id="btn-done" onclick="markDone(\''+key.replace(/'/g,'&#39;')+'\',true)">완료 처리</button>'
+              :'<button class="btn" id="btn-done" onclick="confirmEvent(\''+date+'\',\''+tplId+'\')">확인</button>'))
     +'</div>';
   openModal(h);
   if(snap) snapDoneToPointer();
+}
+/* 정기 업무 확인: 진행 전 단계가 있으면 완료 불가, 전부 처리됐으면 완료 여부 확인 */
+function confirmEvent(date,tplId){
+  const t=tplById(tplId);
+  const key=date+'|'+tplId;
+  const bag=state.steps['ev:'+key]||{};
+  const steps=(t&&t.checklist)?t.checklist:[];
+  const undone=steps.filter(function(x,idx){ const s=bag[idx]; return !(s&&s.status&&s.status!=='todo'); }).length;
+  if(!state.done[key] && !undone){
+    if(confirm('모든 체크리스트가 처리되었습니다. 업무를 완료 처리할까요?')){ markDone(key,true); return; }
+  } else if(undone){
+    toast('진행 전 단계가 '+undone+'개 남아 있습니다 (업무 누락 방지)');
+  }
+  closeModal();
 }
 function markDone(key,on){ if(on) state.done[key]={at:new Date().toISOString()}; else delete state.done[key]; save(); closeModal(); render(); }
 
@@ -898,8 +913,15 @@ function cycleStep(scope,idx){
   }
   const bag=state.steps[scope]=state.steps[scope]||{};
   const st=bag[idx]=bag[idx]||{status:'todo',memo:''};
+  const wasTodo=st.status==='todo';
   st.status=ST_NEXT[st.status]; save();
   const m=scope.slice(3).split('|'); openEvent(m[0], m[1], false, ''); renderBackground();
+  const key=m[0]+'|'+m[1];
+  if(wasTodo && !state.done[key]){
+    const t=tplById(m[1]);
+    const all=((t&&t.checklist)?t.checklist:[]).every(function(x,i2){ const s2=bag[i2]; return s2&&s2.status&&s2.status!=='todo'; });
+    if(all && confirm('모든 체크리스트가 처리되었습니다. 업무를 완료 처리할까요?')) markDone(key,true);
+  }
 }
 function stepMemo(scope,idx,val){
   if(scope.startsWith('inst:')){ const i=state.instances.find(x=>x.id===scope.slice(5)); if(i){ i.checklist[idx].memo=val; save(); } return; }
@@ -1287,27 +1309,50 @@ function genFlex(){
 }
 
 /* ============================================================ 템플릿 */
+let tplSearch='';
+function tplMatches(t,q){
+  const hay=[t.name,t.cat,t.kind,effCycle(t),t.overview||'',t.contacts||'',t.intakeDesc||'',
+    (t.knowhow||[]).join(' '),(t.checklist||[]).join(' '),(t.refs||[]).join(' ')].join(' ').toLowerCase();
+  return q.toLowerCase().split(/\s+/).filter(Boolean).every(tok=>hay.indexOf(tok)>=0);
+}
+function buildTplCard(t, open){
+  let h='<details class="tpl"'+(open?' open':'')+'><summary><span class="dot '+t.color+'"></span><span class="t">'+esc(t.name)+'</span>'
+    +'<span class="chip '+(t.kind==='정기'?'blue':'yellow')+'">'+t.kind+'</span><span class="muted">'+esc(effCycle(t))+'</span>'+((state.tplOv||{})[t.id]?'<span class="chip green">수정됨</span>':'')+((state.recurOv||{})[t.id]?'<span class="chip yellow">주기 수정됨</span>':'')
+    +(t.custom?'<button class="btn sm gray" onclick="event.preventDefault();delCustomTpl(\''+t.id+'\')">삭제</button>':'')
+    +'</summary><div class="body">';
+  if(t.overview) h+='<h4>개요</h4><p style="font-size:12.5px">'+esc(t.overview)+'</p>';
+  if(t.knowhow&&t.knowhow.length) h+='<h4>노하우·주의</h4><ul>'+t.knowhow.map(k=>'<li>'+esc(k)+'</li>').join('')+'</ul>';
+  if(t.checklist&&t.checklist.length) h+='<h4>체크리스트</h4><ul>'+t.checklist.map(k=>'<li>'+esc(k)+'</li>').join('')+'</ul>';
+  if(t.contacts) h+='<h4>관련 담당자</h4><p style="font-size:12.5px">'+esc(t.contacts)+'</p>';
+  if(t.refs&&t.refs.length) h+='<h4>참조 문서·시트</h4><ul>'+t.refs.map(k=>'<li>'+esc(k)+'</li>').join('')+'</ul>';
+  h+='<div style="margin-top:10px"><button class="btn ghost sm" onclick="openTplEditor(&quot;'+t.id+'&quot;)">내용 수정</button>'
+    +(t.kind==='정기'?' <button class="btn ghost sm" onclick="openRecurEditor(&quot;'+t.id+'&quot;)">주기 수정</button>':'')
+    +((state.tplOv||{})[t.id]?' <button class="btn sm gray" onclick="resetTplEdit(&quot;'+t.id+'&quot;)">내용 복원</button>':'')
+    +((state.recurOv||{})[t.id]?' <button class="btn sm gray" onclick="resetRecur(&quot;'+t.id+'&quot;)">주기 복원</button>':'')+'</div>';
+  h+='</div></details>';
+  return h;
+}
+function renderTplList(){
+  const el=document.getElementById('tpl-list'); if(!el) return;
+  const q=(tplSearch||'').trim();
+  const cats=['복리후생','구매','시설관리','비품','안전','전산','공통'];
+  let h=''; let total=0;
+  for(const c of cats){
+    const list=allTpls().filter(t=>t.cat===c && (!q||tplMatches(t,q)));
+    if(!list.length) continue;
+    total+=list.length;
+    h+='<div class="cat-h">'+c+' ('+list.length+')</div>';
+    for(const t of list) h+=buildTplCard(t, !!q);
+  }
+  if(q) h='<p class="muted" style="margin:2px 0 8px">"'+esc(q)+'" 검색 결과 '+total+'건 (내용이 펼쳐진 상태로 표시)</p>'+(h||'<div class="empty">일치하는 템플릿이 없습니다. 다른 키워드로 검색해 보세요.</div>');
+  el.innerHTML=h;
+}
 function renderTpls(){
   const cats=['복리후생','구매','시설관리','비품','안전','전산','공통'];
-  let h='<div class="card"><h2>업무 템플릿 <span class="cnt">'+allTpls().length+'개</span></h2><p class="muted">총무 마스터리스트(2026-06-04 정리본) 기반. 정기 업무는 반복 규칙으로 캘린더에 자동 생성됩니다.</p></div>';
-  for(const c of cats){
-    const list=allTpls().filter(t=>t.cat===c);
-    if(!list.length) continue;
-    h+='<div class="cat-h">'+c+' ('+list.length+')</div>';
-    for(const t of list){
-      h+='<details class="tpl"><summary><span class="dot '+t.color+'"></span><span class="t">'+esc(t.name)+'</span>'
-        +'<span class="chip '+(t.kind==='정기'?'blue':'yellow')+'">'+t.kind+'</span><span class="muted">'+esc(effCycle(t))+'</span>'+((state.tplOv||{})[t.id]?'<span class="chip green">수정됨</span>':'')+((state.recurOv||{})[t.id]?'<span class="chip yellow">주기 수정됨</span>':'')
-        +(t.custom?'<button class="btn sm gray" onclick="event.preventDefault();delCustomTpl(\''+t.id+'\')">삭제</button>':'')
-        +'</summary><div class="body">';
-      if(t.overview) h+='<h4>개요</h4><p style="font-size:12.5px">'+esc(t.overview)+'</p>';
-      if(t.knowhow&&t.knowhow.length) h+='<h4>노하우·주의</h4><ul>'+t.knowhow.map(k=>'<li>'+esc(k)+'</li>').join('')+'</ul>';
-      if(t.checklist&&t.checklist.length) h+='<h4>체크리스트</h4><ul>'+t.checklist.map(k=>'<li>'+esc(k)+'</li>').join('')+'</ul>';
-      if(t.contacts) h+='<h4>관련 담당자</h4><p style="font-size:12.5px">'+esc(t.contacts)+'</p>';
-      if(t.refs&&t.refs.length) h+='<h4>참조 문서·시트</h4><ul>'+t.refs.map(k=>'<li>'+esc(k)+'</li>').join('')+'</ul>';
-      h+='<div style="margin-top:10px"><button class="btn ghost sm" onclick="openTplEditor(&quot;'+t.id+'&quot;)">내용 수정</button>'+(t.kind==='정기'?' <button class="btn ghost sm" onclick="openRecurEditor(&quot;'+t.id+'&quot;)">주기 수정</button>':'')+((state.tplOv||{})[t.id]?' <button class="btn sm gray" onclick="resetTplEdit(&quot;'+t.id+'&quot;)">내용 복원</button>':'')+((state.recurOv||{})[t.id]?' <button class="btn sm gray" onclick="resetRecur(&quot;'+t.id+'&quot;)">주기 복원</button>':'')+'</div>';
-      h+='</div></details>';
-    }
-  }
+  let h='<div class="card"><h2>업무 템플릿 <span class="cnt">'+allTpls().length+'개</span>'
+    +'<span style="margin-left:auto"><input type="text" id="tpl-search" placeholder="🔍 템플릿 검색 (키워드)" value="'+esc(tplSearch||'')+'" oninput="tplSearch=this.value;renderTplList()" style="padding:7px 12px; border:1px solid var(--line); border-radius:8px; font-size:13px; width:280px; font-family:inherit;"/></span></h2>'
+    +'<p class="muted">총무 마스터리스트(2026-06-04 정리본) 기반. 이름·분류·체크리스트·노하우·담당자·참조 등 모든 내용에서 키워드로 검색됩니다.</p></div>';
+  h+='<div id="tpl-list"></div>';
   // 커스텀 템플릿 추가
   h+='<div class="card" style="margin-top:18px"><h2>사용자 템플릿 추가</h2><div class="form grid2">'
     +'<div><label>업무명</label><input type="text" id="ct-name"/>'
@@ -1322,6 +1367,7 @@ function renderTpls(){
     +'<div style="margin-top:8px;display:flex;gap:8px"><button class="btn ghost sm" onclick="exportData()">내보내기(JSON)</button>'
     +'<button class="btn sm gray" onclick="resetData()">전체 초기화</button></div></div>';
   document.getElementById('v-tpl').innerHTML=h;
+  renderTplList();
 }
 function addCustomTpl(){
   const name=document.getElementById('ct-name').value.trim();

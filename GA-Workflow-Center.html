@@ -670,6 +670,13 @@ function renderDash(){
   const instToday=instEvs.filter(e=>e.date===ts && !e.done);
   const instUp=instEvs.filter(e=>{ const d=parseD(e.date); return d>t && (d-t)<=7*86400000 && !e.done; });
   const upcoming=monthEvs.filter(e=>{ const d=parseD(e.date); return d>t && (d-t)<=7*86400000 && !e.dd; });
+  // 미리 시작한 예정 업무: 체크리스트에 완료가 1개 이상이면 오늘 할 일로 올린다
+  const started=upcoming.filter(ev=>{
+    if(state.done[evKey(ev)]) return false;
+    const bag=state.steps['ev:'+ev.date+'|'+ev.tplId]||{};
+    return Object.keys(bag).some(k=>bag[k]&&bag[k].status==='done');
+  });
+  const upcomingRest=upcoming.filter(ev=>started.indexOf(ev)<0);
   const overdue=overdueEvents();
   const mains=monthEvs.filter(e=>!e.dd);
   const doneCnt=mains.filter(e=>state.done[evKey(e)]).length;
@@ -692,9 +699,15 @@ function renderDash(){
   // 오늘 할 일
   h+='<div class="card"><h2>오늘 할 일 <span class="cnt">'+kdate(ts)+'</span></h2>';
   h+='<div class="row '+(routineDone?'done':'')+'" onclick="toggleRoutine(\''+ts+'\')"><span class="dot green"></span><div class="grow"><div class="t">매일 루틴 · 신문 배치(9시 전)</div><div class="s">1층 201/202/203호 우편함 → 연구소·2층 사업부 배치</div></div><span class="chip '+(routineDone?'green':'gray')+'">'+(routineDone?'완료':'미완료')+'</span></div>';
-  if(!todays.length && !instToday.length) h+='<div class="empty">오늘 예정된 업무가 없습니다.</div>';
+  if(!todays.length && !instToday.length && !started.length) h+='<div class="empty">오늘 예정된 업무가 없습니다.</div>';
   for(const ev of todays) h+=evRow(ev);
   for(const ie of instToday) h+='<div class="row" onclick="openInstance(\''+ie.instId+'\')"><span class="dot '+ie.color+'"></span><div class="grow"><div class="t">'+esc(ie.label)+'</div><div class="s">수시 업무 일정</div></div><span class="chip yellow">수시</span></div>';
+  for(const ev of started){
+    const bag=state.steps['ev:'+ev.date+'|'+ev.tplId]||{};
+    const tt=tplById(ev.tplId)||{};
+    const dn=Object.keys(bag).filter(k=>bag[k]&&bag[k].status==='done').length;
+    h+='<div class="row" onclick="openEvent(\''+ev.date+'\',\''+ev.tplId+'\',false,\''+esc(ev.label).replace(/'/g,'&#39;')+'\',false)"><span class="dot '+ev.color+'"></span><div class="grow"><div class="t">'+esc(ev.label)+'</div><div class="s">예정 '+kdate(ev.date)+' · 체크 '+dn+'/'+((tt.checklist||[]).length)+' 진행 중</div></div><span class="chip blue">미리 시작</span></div>';
+  }
   h+='</div>';
   // 지연
   h+='<div class="card"><h2>지연·이월 업무 <span class="cnt">'+overdue.length+'</span></h2>';
@@ -712,9 +725,9 @@ function renderDash(){
     h+='</div>';
   }
   // 다가오는 일정
-  h+='<div class="card"><h2>7일 내 예정 <span class="cnt">'+upcoming.length+'</span></h2>';
-  if(!upcoming.length && !instUp.length) h+='<div class="empty">7일 내 예정된 업무가 없습니다.</div>';
-  for(const ev of upcoming.slice(0,10)) h+=evRow(ev);
+  h+='<div class="card"><h2>7일 내 예정 <span class="cnt">'+(upcomingRest.length+instUp.length)+'</span></h2>';
+  if(!upcomingRest.length && !instUp.length) h+='<div class="empty">7일 내 예정된 업무가 없습니다.</div>';
+  for(const ev of upcomingRest.slice(0,10)) h+=evRow(ev);
   for(const ie of instUp.slice(0,10)) h+='<div class="row" onclick="openInstance(\''+ie.instId+'\')"><span class="dot '+ie.color+'"></span><div class="grow"><div class="t">'+esc(ie.label)+'</div><div class="s">'+kdate(ie.date)+' · 수시 업무 일정</div></div><span class="chip yellow">수시</span></div>';
   h+='</div></div></div>';
   document.getElementById('v-dash').innerHTML=h;
